@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { OrganizationSearchResult } from "@/lib/apollo";
+import { OWNER_OPTIONS } from "@/lib/team";
 import { useApolloUsage } from "./ApolloUsageContext";
 
 const KEYWORD_SUGGESTIONS = [
@@ -38,7 +39,7 @@ export default function DiscoverForm() {
 
   const [corridor, setCorridor] = useState("Mexico → USA");
   const [currencyExposure, setCurrencyExposure] = useState("USD/MXN");
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState(OWNER_OPTIONS[0]);
 
   const [results, setResults] = useState<OrganizationSearchResult[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -193,7 +194,22 @@ export default function DiscoverForm() {
             onChange={setCurrencyExposure}
             placeholder="USD/MXN"
           />
-          <Field label="Owner (optional)" value={owner} onChange={setOwner} placeholder="M. Alvarez" />
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase tracking-wider text-neutral-400">
+              Owner
+            </span>
+            <select
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+              className="w-full border border-neutral-700 bg-black px-2 py-1.5 text-xs text-emerald-400 outline-none focus:border-emerald-600"
+            >
+              {OWNER_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <button

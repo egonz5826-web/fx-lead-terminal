@@ -124,6 +124,22 @@ export async function updateLeadNotes(
   if (error) throw error;
 }
 
+export async function updateLeadOwner(leadId: string, owner: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("leads").update({ owner }).eq("id", leadId);
+  if (error) throw error;
+}
+
+export async function bulkUpdateLeadOwner(
+  leadIds: string[],
+  owner: string
+): Promise<void> {
+  if (leadIds.length === 0) return;
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("leads").update({ owner }).in("id", leadIds);
+  if (error) throw error;
+}
+
 export async function deleteLead(leadId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
 

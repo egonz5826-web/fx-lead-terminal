@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import type { Contact, LeadStatus, LeadWithScore } from "@/lib/types";
 import { LEAD_STATUSES } from "@/lib/types";
+import { OWNER_OPTIONS } from "@/lib/team";
 import LeadContactsCell from "./LeadContactsCell";
 import StatusDropdown from "./StatusDropdown";
+import OwnerDropdown from "./OwnerDropdown";
 import NotesFollowUp from "./NotesFollowUp";
 
 export type LeadWithContacts = LeadWithScore & {
@@ -55,6 +57,10 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
   const [ownerFilter, setOwnerFilter] = useState<string>("All");
   const [dueOnly, setDueOnly] = useState(false);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOwner, setBulkOwner] = useState(OWNER_OPTIONS[0]);
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+
   const owners = useMemo(
     () => Array.from(new Set(rows.map((r) => r.owner).filter(Boolean))).sort(),
     [rows]
@@ -67,16 +73,55 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
 
   function handleDiscard(leadId: string) {
     setRows((prev) => prev.filter((l) => l.id !== leadId));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(leadId);
+      return next;
+    });
   }
 
   function handleStatusChange(leadId: string, status: LeadStatus) {
     setRows((prev) => prev.map((l) => (l.id === leadId ? { ...l, status } : l)));
   }
 
+  function handleOwnerChange(leadId: string, owner: string) {
+    setRows((prev) => prev.map((l) => (l.id === leadId ? { ...l, owner } : l)));
+  }
+
   function handleFollowUpDateChange(leadId: string, date: string | null) {
     setRows((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, follow_up_date: date } : l))
     );
+  }
+
+  function toggleSelected(leadId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  }
+
+  async function handleBulkAssign() {
+    if (selected.size === 0) return;
+    setBulkAssigning(true);
+    try {
+      const leadIds = Array.from(selected);
+      const res = await fetch("/api/leads/bulk-update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds, owner: bulkOwner }),
+      });
+      if (res.ok) {
+        setRows((prev) =>
+          prev.map((l) => (selected.has(l.id) ? { ...l, owner: bulkOwner } : l))
+        );
+        setSelected(new Set());
+      }
+    } finally {
+      setBulkAssigning(false);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -109,6 +154,22 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
     });
     return copy;
   }, [filtered, sortKey, sortDir]);
+
+  const allVisibleSelected =
+    sorted.length > 0 && sorted.every((l) => selected.has(l.id));
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        sorted.forEach((l) => next.delete(l.id));
+        return next;
+      }
+      const next = new Set(prev);
+      sorted.forEach((l) => next.add(l.id));
+      return next;
+    });
+  }
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -187,16 +248,57 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
         )}
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-emerald-900 bg-emerald-950/20 px-3 py-2">
+          <span className="text-[11px] font-semibold text-emerald-400">
+            {selected.size} selected
+          </span>
+          <span className="text-[11px] text-neutral-400">Assign owner:</span>
+          <select
+            value={bulkOwner}
+            onChange={(e) => setBulkOwner(e.target.value)}
+            className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+          >
+            {OWNER_OPTIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleBulkAssign}
+            disabled={bulkAssigning}
+            className="border border-emerald-700 bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-900/40 disabled:opacity-50"
+          >
+            {bulkAssigning ? "APPLYING…" : "APPLY"}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-[11px] text-neutral-500 hover:text-neutral-300"
+          >
+            clear selection
+          </button>
+        </div>
+      )}
+
       <div className="max-h-[70vh] overflow-auto">
-        <table className="w-full min-w-[1400px] border-collapse text-xs">
+        <table className="w-full min-w-[1450px] border-collapse text-xs">
           <thead className="sticky top-0 z-20 bg-neutral-950">
             <tr className="border-b border-neutral-800 text-left text-neutral-400">
+              <th className="sticky left-0 z-30 w-8 bg-neutral-950 px-2 py-2">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  className="accent-emerald-500"
+                />
+              </th>
               {COLUMNS.map((col, i) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
                   className={`cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold hover:text-emerald-400 ${
-                    i === 0 ? "sticky left-0 z-30 bg-neutral-950" : ""
+                    i === 0 ? "sticky left-8 z-30 bg-neutral-950" : ""
                   }`}
                 >
                   {col.label}
@@ -216,7 +318,15 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                 key={lead.id}
                 className="border-b border-neutral-900 hover:bg-neutral-900/60"
               >
-                <td className="sticky left-0 z-10 whitespace-nowrap bg-neutral-950 px-3 py-2 font-medium text-neutral-100">
+                <td className="sticky left-0 z-10 w-8 bg-neutral-950 px-2 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(lead.id)}
+                    onChange={() => toggleSelected(lead.id)}
+                    className="accent-emerald-500"
+                  />
+                </td>
+                <td className="sticky left-8 z-10 whitespace-nowrap bg-neutral-950 px-3 py-2 font-medium text-neutral-100">
                   {lead.company_name}
                   {lead.isExistingClient && (
                     <span
@@ -258,8 +368,12 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     onStatusChange={handleStatusChange}
                   />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
-                  {lead.owner}
+                <td className="whitespace-nowrap px-3 py-2">
+                  <OwnerDropdown
+                    leadId={lead.id}
+                    owner={lead.owner}
+                    onOwnerChange={handleOwnerChange}
+                  />
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
                   {lead.phone ?? "—"}
@@ -284,7 +398,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-3 py-6 text-center text-neutral-500">
+                <td colSpan={13} className="px-3 py-6 text-center text-neutral-500">
                   No leads match these filters.
                 </td>
               </tr>

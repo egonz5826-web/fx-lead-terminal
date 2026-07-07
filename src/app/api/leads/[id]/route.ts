@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteLead, updateLeadNotes, updateLeadStatus } from "@/lib/data";
+import { deleteLead, updateLeadNotes, updateLeadOwner, updateLeadStatus } from "@/lib/data";
 
 export async function PATCH(
   request: Request,
@@ -11,6 +11,9 @@ export async function PATCH(
 
     if (typeof body.status === "string") {
       await updateLeadStatus(id, body.status);
+    }
+    if (typeof body.owner === "string") {
+      await updateLeadOwner(id, body.owner);
     }
     if ("notes" in body || "follow_up_date" in body) {
       await updateLeadNotes(id, {
