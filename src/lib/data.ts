@@ -47,12 +47,15 @@ export async function createLeadsFromDiscovery(
       .map((l) => normalizeDomain(l.website))
       .filter((d): d is string => Boolean(d))
   );
+  const excludedDomains = await getExcludedDomains();
 
   const seen = new Set<string>();
   const deduped = companies.filter((c) => {
     const domain = normalizeDomain(c.website);
     if (!domain) return true;
-    if (existingDomains.has(domain) || seen.has(domain)) return false;
+    if (existingDomains.has(domain) || excludedDomains.has(domain) || seen.has(domain)) {
+      return false;
+    }
     seen.add(domain);
     return true;
   });
@@ -123,8 +126,48 @@ export async function updateLeadNotes(
 
 export async function deleteLead(leadId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("company_name, website")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  const domain = normalizeDomain(lead?.website);
+  if (domain) {
+    try {
+      await supabase
+        .from("excluded_companies")
+        .upsert({ domain, company_name: lead?.company_name ?? null }, { onConflict: "domain" });
+    } catch {
+      // Non-fatal: still proceed with deleting the lead even if exclusion tracking fails.
+    }
+  }
+
   const { error } = await supabase.from("leads").delete().eq("id", leadId);
   if (error) throw error;
+}
+
+export async function getExcludedDomains(): Promise<Set<string>> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase.from("excluded_companies").select("domain");
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => r.domain));
+}
+
+export async function getKnownDomains(): Promise<Set<string>> {
+  const supabase = getSupabaseServerClient();
+  const [{ data: leads }, excluded] = await Promise.all([
+    supabase.from("leads").select("website"),
+    getExcludedDomains(),
+  ]);
+
+  const known = new Set(excluded);
+  for (const l of leads ?? []) {
+    const domain = normalizeDomain(l.website);
+    if (domain) known.add(domain);
+  }
+  return known;
 }
 
 export async function getLeadById(leadId: string): Promise<Lead | null> {

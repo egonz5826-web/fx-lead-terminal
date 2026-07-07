@@ -45,11 +45,13 @@ export default function DiscoverForm() {
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
 
   async function runSearch(targetPage: number) {
     setSearching(true);
     setError(null);
+    setInfoMessage(null);
     setAddedMessage(null);
     setResults(null);
     setSelected(new Set());
@@ -74,7 +76,13 @@ export default function DiscoverForm() {
       setResults(data.results ?? []);
       setPage(targetPage);
       if (typeof data.creditsUsed === "number") setCreditsUsed(data.creditsUsed);
-      if (data.message) setError(data.message);
+      if (data.message) {
+        if ((data.results ?? []).length === 0) {
+          setError(data.message);
+        } else {
+          setInfoMessage(data.message);
+        }
+      }
     } catch {
       setError("Couldn't reach Apollo. Check your connection and try again.");
     } finally {
@@ -200,6 +208,11 @@ export default function DiscoverForm() {
       {error && (
         <div className="border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-400">
           ⚠ {error}
+        </div>
+      )}
+      {infoMessage && (
+        <div className="border border-neutral-700 bg-neutral-900/50 p-3 text-xs text-neutral-400">
+          ℹ {infoMessage}
         </div>
       )}
       {addedMessage && (
