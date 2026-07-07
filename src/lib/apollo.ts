@@ -123,8 +123,14 @@ export interface EnrichedContact {
 }
 
 function getBaseUrl(): string | null {
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  // Prefer a stable custom domain over VERCEL_URL: that env var points at the
+  // ephemeral per-deployment URL, which Vercel's own deployment protection
+  // (SSO wall) blocks for outside callers like Apollo's webhook.
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return null;
 }
 
