@@ -93,24 +93,31 @@ export async function saveEnrichedContact(
   enriched: EnrichedContact
 ): Promise<Contact> {
   const supabase = getSupabaseServerClient();
-  const { data, error } = await supabase
+
+  const { data: existing } = await supabase
     .from("contacts")
-    .upsert(
-      {
-        lead_id: leadId,
-        apollo_person_id: enriched.apollo_person_id,
-        name: enriched.name,
-        title: enriched.title,
-        email: enriched.email,
-        phone: enriched.phone,
-        email_status: enriched.email_status,
-        enriched: true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "lead_id,apollo_person_id" }
-    )
-    .select()
-    .single();
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("apollo_person_id", enriched.apollo_person_id)
+    .maybeSingle();
+
+  const payload = {
+    lead_id: leadId,
+    apollo_person_id: enriched.apollo_person_id,
+    name: enriched.name,
+    title: enriched.title,
+    email: enriched.email,
+    phone: enriched.phone,
+    email_status: enriched.email_status,
+    enriched: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const query = existing
+    ? supabase.from("contacts").update(payload).eq("id", existing.id)
+    : supabase.from("contacts").insert(payload);
+
+  const { data, error } = await query.select().single();
 
   if (error) throw error;
   return data;
