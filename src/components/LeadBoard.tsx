@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Contact, LeadWithScore } from "@/lib/types";
+import type { Contact, LeadStatus, LeadWithScore } from "@/lib/types";
+import { LEAD_STATUSES } from "@/lib/types";
 import LeadContactsCell from "./LeadContactsCell";
 import StatusDropdown from "./StatusDropdown";
 import NotesFollowUp from "./NotesFollowUp";
@@ -40,13 +41,61 @@ function scoreColor(score: number): string {
   return "text-red-400";
 }
 
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
   const [rows, setRows] = useState(leads);
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | "All">("All");
+  const [ownerFilter, setOwnerFilter] = useState<string>("All");
+  const [dueOnly, setDueOnly] = useState(false);
+
+  const owners = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.owner).filter(Boolean))).sort(),
+    [rows]
+  );
+
+  const dueCount = useMemo(() => {
+    const today = todayStr();
+    return rows.filter((r) => r.follow_up_date && r.follow_up_date <= today).length;
+  }, [rows]);
+
+  function handleDiscard(leadId: string) {
+    setRows((prev) => prev.filter((l) => l.id !== leadId));
+  }
+
+  function handleStatusChange(leadId: string, status: LeadStatus) {
+    setRows((prev) => prev.map((l) => (l.id === leadId ? { ...l, status } : l)));
+  }
+
+  function handleFollowUpDateChange(leadId: string, date: string | null) {
+    setRows((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, follow_up_date: date } : l))
+    );
+  }
+
+  const filtered = useMemo(() => {
+    const today = todayStr();
+    const query = searchText.trim().toLowerCase();
+    return rows.filter((lead) => {
+      if (statusFilter !== "All" && lead.status !== statusFilter) return false;
+      if (ownerFilter !== "All" && lead.owner !== ownerFilter) return false;
+      if (dueOnly && !(lead.follow_up_date && lead.follow_up_date <= today)) return false;
+      if (query) {
+        const haystack = `${lead.company_name} ${lead.city} ${lead.state} ${lead.owner}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [rows, searchText, statusFilter, ownerFilter, dueOnly]);
+
   const sorted = useMemo(() => {
-    const copy = [...rows];
+    const copy = [...filtered];
     copy.sort((a, b) => {
       const av = a[sortKey as keyof LeadWithScore];
       const bv = b[sortKey as keyof LeadWithScore];
@@ -59,7 +108,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [rows, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir]);
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -70,18 +119,74 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
     }
   }
 
-  function handleDiscard(leadId: string) {
-    setRows((prev) => prev.filter((l) => l.id !== leadId));
-  }
-
   return (
     <div className="border border-emerald-900 bg-neutral-950">
       <div className="flex items-center justify-between border-b border-emerald-900 px-3 py-2">
         <span className="text-[11px] font-semibold tracking-widest text-emerald-500">
           LEAD BOARD
         </span>
-        <span className="text-[10px] text-neutral-500">{rows.length} LEADS</span>
+        <span className="text-[10px] text-neutral-500">
+          {sorted.length} / {rows.length} LEADS
+        </span>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search company, city, owner…"
+          className="w-52 border border-neutral-700 bg-black px-2 py-1 text-[11px] text-emerald-400 outline-none focus:border-emerald-600"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as LeadStatus | "All")}
+          className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+        >
+          <option value="All">All statuses</option>
+          {LEAD_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select
+          value={ownerFilter}
+          onChange={(e) => setOwnerFilter(e.target.value)}
+          className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+        >
+          <option value="All">All owners</option>
+          {owners.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setDueOnly((d) => !d)}
+          className={`border px-2 py-1 text-[11px] font-semibold ${
+            dueOnly
+              ? "border-amber-600 bg-amber-950/40 text-amber-400"
+              : "border-neutral-700 text-neutral-300 hover:border-amber-700 hover:text-amber-400"
+          }`}
+        >
+          {dueCount} follow-up{dueCount === 1 ? "" : "s"} due
+        </button>
+        {(searchText || statusFilter !== "All" || ownerFilter !== "All" || dueOnly) && (
+          <button
+            onClick={() => {
+              setSearchText("");
+              setStatusFilter("All");
+              setOwnerFilter("All");
+              setDueOnly(false);
+            }}
+            className="text-[11px] text-neutral-500 hover:text-neutral-300"
+          >
+            clear filters
+          </button>
+        )}
+      </div>
+
       <div className="max-h-[70vh] overflow-auto">
         <table className="w-full min-w-[1400px] border-collapse text-xs">
           <thead className="sticky top-0 z-20 bg-neutral-950">
@@ -150,6 +255,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     companyName={lead.company_name}
                     status={lead.status}
                     onDiscard={handleDiscard}
+                    onStatusChange={handleStatusChange}
                   />
                 </td>
                 <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
@@ -171,10 +277,18 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     leadId={lead.id}
                     notes={lead.notes}
                     followUpDate={lead.follow_up_date}
+                    onFollowUpDateChange={handleFollowUpDateChange}
                   />
                 </td>
               </tr>
             ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={12} className="px-3 py-6 text-center text-neutral-500">
+                  No leads match these filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

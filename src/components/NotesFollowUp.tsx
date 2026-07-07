@@ -6,10 +6,12 @@ export default function NotesFollowUp({
   leadId,
   notes,
   followUpDate,
+  onFollowUpDateChange,
 }: {
   leadId: string;
   notes: string | null;
   followUpDate: string | null;
+  onFollowUpDateChange?: (leadId: string, date: string | null) => void;
 }) {
   const [notesValue, setNotesValue] = useState(notes ?? "");
   const [dateValue, setDateValue] = useState(followUpDate ?? "");
@@ -36,8 +38,10 @@ export default function NotesFollowUp({
         type="date"
         value={dateValue}
         onChange={(e) => {
+          const value = e.target.value || null;
           setDateValue(e.target.value);
-          save({ follow_up_date: e.target.value || null });
+          save({ follow_up_date: value });
+          onFollowUpDateChange?.(leadId, value);
         }}
         className="w-40 border border-neutral-800 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-emerald-700"
       />

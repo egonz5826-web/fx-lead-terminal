@@ -27,11 +27,13 @@ export default function StatusDropdown({
   companyName,
   status,
   onDiscard,
+  onStatusChange,
 }: {
   leadId: string;
   companyName: string;
   status: LeadStatus;
   onDiscard: (leadId: string) => void;
+  onStatusChange?: (leadId: string, status: LeadStatus) => void;
 }) {
   const [current, setCurrent] = useState<LeadStatus>(status);
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,7 @@ export default function StatusDropdown({
 
     const next = value as LeadStatus;
     setCurrent(next);
+    onStatusChange?.(leadId, next);
     setSaving(true);
     try {
       await fetch(`/api/leads/${leadId}`, {
