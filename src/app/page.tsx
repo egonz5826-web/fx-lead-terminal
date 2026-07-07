@@ -5,6 +5,7 @@ import LeadBoard from "@/components/LeadBoard";
 import SignalsFeed from "@/components/SignalsFeed";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
+import TerminalFooter from "@/components/TerminalFooter";
 import {
   getApolloCreditsUsed,
   getContactsByLeadIds,
@@ -92,13 +93,7 @@ export default async function Home() {
           </div>
         </main>
 
-        <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-emerald-900 bg-neutral-950 px-4 py-1.5 text-[10px] text-neutral-600">
-          <span><kbd className="text-emerald-600">F1</kbd> TERMINAL</span>
-          <span><kbd className="text-emerald-600">F2</kbd> DISCOVER</span>
-          <span><kbd className="text-emerald-600">F3</kbd> SETTINGS</span>
-          <span><kbd className="text-emerald-600">F9</kbd> REFRESH</span>
-          <span className="ml-auto">MONEX USA · FX LEAD TERMINAL</span>
-        </footer>
+        <TerminalFooter />
       </div>
     </ApolloUsageProvider>
   );

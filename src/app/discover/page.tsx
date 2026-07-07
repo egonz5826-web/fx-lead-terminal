@@ -2,6 +2,7 @@ import Link from "next/link";
 import DiscoverForm from "@/components/DiscoverForm";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
+import TerminalFooter from "@/components/TerminalFooter";
 import { getApolloCreditsUsed } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ export default async function DiscoverPage() {
         <main className="mx-auto w-full max-w-3xl flex-1 p-6">
           <DiscoverForm />
         </main>
+
+        <TerminalFooter />
       </div>
     </ApolloUsageProvider>
   );

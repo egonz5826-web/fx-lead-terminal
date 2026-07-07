@@ -4,6 +4,7 @@ import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { updateWeights } from "./actions";
 import WeightField from "@/components/WeightField";
 import ClientImportForm from "@/components/ClientImportForm";
+import TerminalFooter from "@/components/TerminalFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,8 @@ export default async function SettingsPage() {
           <ClientImportForm currentCount={existingClientsCount} />
         </div>
       </main>
+
+      <TerminalFooter />
     </div>
   );
 }
