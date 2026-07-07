@@ -167,3 +167,82 @@ export async function enrichContact(
     email_status: data.person.email_status ?? null,
   };
 }
+
+interface ApolloOrganizationResult {
+  id: string;
+  name: string | null;
+  website_url?: string | null;
+  primary_domain?: string | null;
+  city?: string | null;
+  state?: string | null;
+  estimated_num_employees?: number | null;
+}
+
+export interface OrganizationSearchResult {
+  apollo_org_id: string;
+  name: string;
+  website: string | null;
+  city: string | null;
+  state: string | null;
+  estimated_employees: number | null;
+}
+
+export interface DiscoverCompaniesParams {
+  location: string;
+  keywords: string;
+  minEmployees?: number;
+  maxEmployees?: number;
+  perPage?: number;
+}
+
+export async function discoverCompanies(
+  params: DiscoverCompaniesParams
+): Promise<OrganizationSearchResult[]> {
+  const apiKey = getApiKey();
+
+  const query = new URLSearchParams();
+  if (params.location.trim()) {
+    query.append("organization_locations[]", params.location.trim());
+  }
+  params.keywords
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .forEach((k) => query.append("q_organization_keyword_tags[]", k));
+  if (params.minEmployees || params.maxEmployees) {
+    query.append(
+      "organization_num_employees_ranges[]",
+      `${params.minEmployees ?? 1},${params.maxEmployees ?? 100000}`
+    );
+  }
+  query.append("per_page", String(params.perPage ?? 25));
+
+  const res = await fetch(
+    `https://api.apollo.io/api/v1/mixed_companies/search?${query.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+        "x-api-key": apiKey,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    throw friendlyErrorFromStatus(res.status);
+  }
+
+  const data = await res.json();
+  const orgs: ApolloOrganizationResult[] = data.organizations ?? data.accounts ?? [];
+
+  return orgs.map((o) => ({
+    apollo_org_id: o.id,
+    name: o.name ?? "Unknown",
+    website: o.primary_domain ?? o.website_url ?? null,
+    city: o.city ?? null,
+    state: o.state ?? null,
+    estimated_employees: o.estimated_num_employees ?? null,
+  }));
+}

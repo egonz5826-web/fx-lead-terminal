@@ -2,7 +2,7 @@ import "server-only";
 import { getSupabaseServerClient } from "./supabase";
 import { DEFAULT_WEIGHTS } from "./scoring";
 import type { Contact, Lead, ScoringWeights } from "./types";
-import type { EnrichedContact } from "./apollo";
+import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 
 export async function getLeads(): Promise<Lead[]> {
   const supabase = getSupabaseServerClient();
@@ -13,6 +13,45 @@ export async function getLeads(): Promise<Lead[]> {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export interface DiscoveryContext {
+  corridor: string;
+  currencyExposure: string;
+  owner: string;
+}
+
+function estimateVolumeScore(employees: number | null): number {
+  if (!employees) return 40;
+  return Math.max(20, Math.min(100, Math.round((employees / 500) * 100)));
+}
+
+export async function createLeadsFromDiscovery(
+  companies: OrganizationSearchResult[],
+  context: DiscoveryContext
+): Promise<number> {
+  if (companies.length === 0) return 0;
+
+  const supabase = getSupabaseServerClient();
+  const rows = companies.map((c) => ({
+    company_name: c.name,
+    website: c.website,
+    city: c.city ?? "Unknown",
+    state: c.state ?? "Unknown",
+    import_corridors: context.corridor,
+    currency_exposure: context.currencyExposure,
+    est_annual_teu: c.estimated_employees ? c.estimated_employees * 80 : 5000,
+    volume_score: estimateVolumeScore(c.estimated_employees),
+    corridor_score: 60,
+    growth_score: 50,
+    latest_signal: "Discovered via Apollo prospecting — scores are starting estimates",
+    status: "New",
+    owner: context.owner || "Unassigned",
+  }));
+
+  const { error, count } = await supabase.from("leads").insert(rows, { count: "exact" });
+  if (error) throw error;
+  return count ?? rows.length;
 }
 
 export async function getLeadById(leadId: string): Promise<Lead | null> {

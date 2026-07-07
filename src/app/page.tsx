@@ -61,6 +61,9 @@ export default async function Home() {
           </div>
           <nav className="flex items-center gap-4 text-xs">
             <ApolloCreditsCounter />
+            <Link href="/discover" className="text-neutral-400 hover:text-emerald-400">
+              DISCOVER
+            </Link>
             <Link href="/settings" className="text-neutral-400 hover:text-emerald-400">
               SETTINGS
             </Link>
