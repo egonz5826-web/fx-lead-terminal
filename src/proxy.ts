@@ -6,7 +6,11 @@ const SESSION_COOKIE = "fx_session";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/login" || pathname.startsWith("/api/login")) {
+  if (
+    pathname === "/login" ||
+    pathname.startsWith("/api/login") ||
+    pathname === "/api/apollo/phone-webhook"
+  ) {
     return NextResponse.next();
   }
 

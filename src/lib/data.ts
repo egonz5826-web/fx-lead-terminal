@@ -3,6 +3,8 @@ import { getSupabaseServerClient } from "./supabase";
 import { DEFAULT_WEIGHTS } from "./scoring";
 import type { Contact, Lead, ScoringWeights } from "./types";
 import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
+import { enrichOrganization } from "./apollo";
+import { normalizeDomain } from "./matching";
 
 export async function getLeads(): Promise<Lead[]> {
   const supabase = getSupabaseServerClient();
@@ -26,32 +28,103 @@ function estimateVolumeScore(employees: number | null): number {
   return Math.max(20, Math.min(100, Math.round((employees / 500) * 100)));
 }
 
+export interface CreateLeadsResult {
+  added: number;
+  skippedDuplicates: number;
+}
+
 export async function createLeadsFromDiscovery(
   companies: OrganizationSearchResult[],
   context: DiscoveryContext
-): Promise<number> {
-  if (companies.length === 0) return 0;
+): Promise<CreateLeadsResult> {
+  if (companies.length === 0) return { added: 0, skippedDuplicates: 0 };
 
   const supabase = getSupabaseServerClient();
-  const rows = companies.map((c) => ({
-    company_name: c.name,
-    website: c.website,
-    city: c.city ?? "Unknown",
-    state: c.state ?? "Unknown",
-    import_corridors: context.corridor,
-    currency_exposure: context.currencyExposure,
-    est_annual_teu: c.estimated_employees ? c.estimated_employees * 80 : 5000,
-    volume_score: estimateVolumeScore(c.estimated_employees),
-    corridor_score: 60,
-    growth_score: 50,
-    latest_signal: "Discovered via Apollo prospecting — scores are starting estimates",
-    status: "New",
-    owner: context.owner || "Unassigned",
-  }));
+
+  const { data: existingLeads } = await supabase.from("leads").select("website");
+  const existingDomains = new Set(
+    (existingLeads ?? [])
+      .map((l) => normalizeDomain(l.website))
+      .filter((d): d is string => Boolean(d))
+  );
+
+  const seen = new Set<string>();
+  const deduped = companies.filter((c) => {
+    const domain = normalizeDomain(c.website);
+    if (!domain) return true;
+    if (existingDomains.has(domain) || seen.has(domain)) return false;
+    seen.add(domain);
+    return true;
+  });
+  const skippedDuplicates = companies.length - deduped.length;
+
+  let enrichmentCallsMade = 0;
+
+  const rows = await Promise.all(
+    deduped.map(async (c) => {
+      let details: Awaited<ReturnType<typeof enrichOrganization>> = null;
+      if (c.website) {
+        try {
+          details = await enrichOrganization(c.website);
+          enrichmentCallsMade += 1;
+        } catch {
+          details = null;
+        }
+      }
+
+      const employees = details?.estimated_employees ?? null;
+      return {
+        company_name: c.name,
+        website: c.website,
+        phone: details?.phone ?? c.phone ?? null,
+        city: details?.city ?? "Unknown",
+        state: details?.state ?? "Unknown",
+        import_corridors: context.corridor,
+        currency_exposure: context.currencyExposure,
+        est_annual_teu: employees ? employees * 80 : 5000,
+        volume_score: estimateVolumeScore(employees),
+        corridor_score: 60,
+        growth_score: 50,
+        latest_signal: details?.industry
+          ? `Discovered via Apollo — industry: ${details.industry}`
+          : "Discovered via Apollo prospecting — scores are starting estimates",
+        status: "New",
+        owner: context.owner || "Unassigned",
+      };
+    })
+  );
+
+  if (rows.length === 0) return { added: 0, skippedDuplicates };
 
   const { error, count } = await supabase.from("leads").insert(rows, { count: "exact" });
   if (error) throw error;
-  return count ?? rows.length;
+
+  if (enrichmentCallsMade > 0) {
+    await incrementApolloCreditsUsedBy(enrichmentCallsMade);
+  }
+
+  return { added: count ?? rows.length, skippedDuplicates };
+}
+
+export async function updateLeadStatus(leadId: string, status: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("leads").update({ status }).eq("id", leadId);
+  if (error) throw error;
+}
+
+export async function updateLeadNotes(
+  leadId: string,
+  fields: { notes?: string; follow_up_date?: string | null }
+): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("leads").update(fields).eq("id", leadId);
+  if (error) throw error;
+}
+
+export async function deleteLead(leadId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("leads").delete().eq("id", leadId);
+  if (error) throw error;
 }
 
 export async function getLeadById(leadId: string): Promise<Lead | null> {
@@ -64,6 +137,18 @@ export async function getLeadById(leadId: string): Promise<Lead | null> {
 
   if (error) throw error;
   return data;
+}
+
+export async function updateContactPhoneByApolloId(
+  apolloPersonId: string,
+  phone: string
+): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from("contacts")
+    .update({ phone, updated_at: new Date().toISOString() })
+    .eq("apollo_person_id", apolloPersonId);
+  if (error) throw error;
 }
 
 export async function getContactsByLeadIds(
@@ -136,9 +221,13 @@ export async function getApolloCreditsUsed(): Promise<number> {
 }
 
 export async function incrementApolloCreditsUsed(): Promise<number> {
+  return incrementApolloCreditsUsedBy(1);
+}
+
+export async function incrementApolloCreditsUsedBy(amount: number): Promise<number> {
   const supabase = getSupabaseServerClient();
   const current = await getApolloCreditsUsed();
-  const next = current + 1;
+  const next = current + amount;
 
   const { error } = await supabase
     .from("apollo_usage")

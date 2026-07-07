@@ -16,13 +16,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const added = await createLeadsFromDiscovery(companies as OrganizationSearchResult[], {
+    const result = await createLeadsFromDiscovery(companies as OrganizationSearchResult[], {
       corridor,
       currencyExposure,
       owner: owner ?? "",
     });
 
-    return NextResponse.json({ added });
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to add leads.";
     return NextResponse.json({ error: message }, { status: 500 });

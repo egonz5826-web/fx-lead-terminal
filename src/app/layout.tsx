@@ -20,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistMono.variable} h-full antialiased dark`}>
       <body className="min-h-full flex flex-col bg-black text-emerald-100">
+        <div className="crt-overlay" aria-hidden="true" />
         {children}
       </body>
     </html>

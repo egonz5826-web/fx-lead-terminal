@@ -52,7 +52,7 @@ export default async function Home() {
 
         <header className="flex items-center justify-between border-b border-emerald-900 bg-neutral-950 px-4 py-3">
           <div>
-            <h1 className="text-sm font-bold tracking-widest text-emerald-500">
+            <h1 className="terminal-glow text-sm font-bold tracking-widest text-emerald-500">
               FX LEAD TERMINAL
             </h1>
             <p className="text-[10px] text-neutral-500">
@@ -91,6 +91,14 @@ export default async function Home() {
             </div>
           </div>
         </main>
+
+        <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-emerald-900 bg-neutral-950 px-4 py-1.5 text-[10px] text-neutral-600">
+          <span><kbd className="text-emerald-600">F1</kbd> TERMINAL</span>
+          <span><kbd className="text-emerald-600">F2</kbd> DISCOVER</span>
+          <span><kbd className="text-emerald-600">F3</kbd> SETTINGS</span>
+          <span><kbd className="text-emerald-600">F9</kbd> REFRESH</span>
+          <span className="ml-auto">MONEX USA · FX LEAD TERMINAL</span>
+        </footer>
       </div>
     </ApolloUsageProvider>
   );

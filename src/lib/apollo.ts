@@ -119,6 +119,13 @@ export interface EnrichedContact {
   email: string | null;
   phone: string | null;
   email_status: string | null;
+  phonePending: boolean;
+}
+
+function getBaseUrl(): string | null {
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  return null;
 }
 
 export async function enrichContact(
@@ -129,6 +136,14 @@ export async function enrichContact(
   const params = new URLSearchParams();
   params.append("id", apolloPersonId);
   params.append("reveal_personal_emails", "true");
+
+  const baseUrl = getBaseUrl();
+  let phonePending = false;
+  if (baseUrl) {
+    params.append("reveal_phone_number", "true");
+    params.append("webhook_url", `${baseUrl}/api/apollo/phone-webhook`);
+    phonePending = true;
+  }
 
   const res = await fetch(
     `https://api.apollo.io/api/v1/people/match?${params.toString()}`,
@@ -165,6 +180,7 @@ export async function enrichContact(
     email: data.person.email ?? null,
     phone,
     email_status: data.person.email_status ?? null,
+    phonePending: phonePending && !phone,
   };
 }
 
@@ -173,18 +189,14 @@ interface ApolloOrganizationResult {
   name: string | null;
   website_url?: string | null;
   primary_domain?: string | null;
-  city?: string | null;
-  state?: string | null;
-  estimated_num_employees?: number | null;
+  sanitized_phone?: string | null;
 }
 
 export interface OrganizationSearchResult {
   apollo_org_id: string;
   name: string;
   website: string | null;
-  city: string | null;
-  state: string | null;
-  estimated_employees: number | null;
+  phone: string | null;
 }
 
 export interface DiscoverCompaniesParams {
@@ -193,6 +205,7 @@ export interface DiscoverCompaniesParams {
   minEmployees?: number;
   maxEmployees?: number;
   perPage?: number;
+  page?: number;
 }
 
 export async function discoverCompanies(
@@ -215,7 +228,8 @@ export async function discoverCompanies(
       `${params.minEmployees ?? 1},${params.maxEmployees ?? 100000}`
     );
   }
-  query.append("per_page", String(params.perPage ?? 25));
+  query.append("per_page", String(params.perPage ?? 50));
+  query.append("page", String(params.page ?? 1));
 
   const res = await fetch(
     `https://api.apollo.io/api/v1/mixed_companies/search?${query.toString()}`,
@@ -241,8 +255,60 @@ export async function discoverCompanies(
     apollo_org_id: o.id,
     name: o.name ?? "Unknown",
     website: o.primary_domain ?? o.website_url ?? null,
-    city: o.city ?? null,
-    state: o.state ?? null,
-    estimated_employees: o.estimated_num_employees ?? null,
+    phone: o.sanitized_phone ?? null,
   }));
+}
+
+interface ApolloOrganizationEnrichResponse {
+  organization: {
+    id: string;
+    name: string | null;
+    primary_domain?: string | null;
+    city?: string | null;
+    state?: string | null;
+    estimated_num_employees?: number | null;
+    industry?: string | null;
+    sanitized_phone?: string | null;
+  } | null;
+}
+
+export interface OrganizationDetails {
+  city: string | null;
+  state: string | null;
+  estimated_employees: number | null;
+  industry: string | null;
+  phone: string | null;
+}
+
+export async function enrichOrganization(
+  domain: string
+): Promise<OrganizationDetails | null> {
+  const apiKey = getApiKey();
+
+  const res = await fetch(
+    `https://api.apollo.io/api/v1/organizations/enrich?domain=${encodeURIComponent(domain)}`,
+    {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        "x-api-key": apiKey,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    throw friendlyErrorFromStatus(res.status);
+  }
+
+  const data: ApolloOrganizationEnrichResponse = await res.json();
+  if (!data.organization) return null;
+
+  return {
+    city: data.organization.city ?? null,
+    state: data.organization.state ?? null,
+    estimated_employees: data.organization.estimated_num_employees ?? null,
+    industry: data.organization.industry ?? null,
+    phone: data.organization.sanitized_phone ?? null,
+  };
 }

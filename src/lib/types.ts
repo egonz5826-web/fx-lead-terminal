@@ -1,16 +1,25 @@
 export type LeadStatus =
   | "New"
   | "Contacted"
-  | "Qualified"
-  | "Negotiating"
-  | "Won"
-  | "Lost"
-  | "Dormant";
+  | "No Answer"
+  | "No FX Need"
+  | "Prospect"
+  | "Client";
+
+export const LEAD_STATUSES: LeadStatus[] = [
+  "New",
+  "Contacted",
+  "No Answer",
+  "No FX Need",
+  "Prospect",
+  "Client",
+];
 
 export interface Lead {
   id: string;
   company_name: string;
   website: string | null;
+  phone: string | null;
   city: string;
   state: string;
   import_corridors: string;
@@ -22,6 +31,8 @@ export interface Lead {
   latest_signal: string;
   status: LeadStatus;
   owner: string;
+  notes: string | null;
+  follow_up_date: string | null;
   created_at: string;
 }
 

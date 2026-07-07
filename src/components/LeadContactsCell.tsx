@@ -22,6 +22,7 @@ export default function LeadContactsCell({
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<ApolloSearchMatch[] | null>(null);
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
+  const [pendingPhoneIds, setPendingPhoneIds] = useState<Set<string>>(new Set());
 
   const enrichedIds = new Set(contacts.map((c) => c.apollo_person_id));
 
@@ -79,6 +80,9 @@ export default function LeadContactsCell({
       }
       setContacts((prev) => [...prev, data.contact]);
       setCreditsUsed(data.creditsUsed);
+      if (data.phonePending) {
+        setPendingPhoneIds((prev) => new Set(prev).add(data.contact.apollo_person_id));
+      }
     } catch {
       setError("Couldn't reach Apollo. Check your connection and try again.");
     } finally {
@@ -97,7 +101,21 @@ export default function LeadContactsCell({
                 {c.title ? ` — ${c.title}` : ""}
               </div>
               {c.email && <div className="text-emerald-400">{c.email}</div>}
-              {c.phone && <div className="text-neutral-400">{c.phone}</div>}
+              {c.phone ? (
+                <div className="text-neutral-400">{c.phone}</div>
+              ) : c.apollo_person_id && pendingPhoneIds.has(c.apollo_person_id) ? (
+                <div className="text-amber-500">phone pending (~few min)</div>
+              ) : null}
+              <a
+                href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
+                  `${c.name} ${companyName}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-neutral-500 hover:text-emerald-400 hover:underline"
+              >
+                search on LinkedIn →
+              </a>
             </li>
           ))}
         </ul>

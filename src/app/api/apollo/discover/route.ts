@@ -4,7 +4,7 @@ import { incrementApolloCreditsUsed } from "@/lib/data";
 
 export async function POST(request: Request) {
   try {
-    const { location, keywords, minEmployees, maxEmployees } = await request.json();
+    const { location, keywords, minEmployees, maxEmployees, page } = await request.json();
 
     if (!location && !keywords) {
       return NextResponse.json(
@@ -18,7 +18,8 @@ export async function POST(request: Request) {
       keywords: keywords ?? "",
       minEmployees,
       maxEmployees,
-      perPage: 25,
+      perPage: 50,
+      page: page ?? 1,
     });
 
     const creditsUsed = await incrementApolloCreditsUsed();

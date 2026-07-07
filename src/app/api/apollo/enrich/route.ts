@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const contact = await saveEnrichedContact(leadId, enriched);
     const creditsUsed = await incrementApolloCreditsUsed();
 
-    return NextResponse.json({ contact, creditsUsed });
+    return NextResponse.json({ contact, creditsUsed, phonePending: enriched.phonePending });
   } catch (err) {
     if (err instanceof ApolloError) {
       const status = err.kind === "no_match" ? 404 : 502;
