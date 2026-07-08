@@ -231,6 +231,24 @@ export async function updateLeadStatus(leadId: string, status: string): Promise<
   const supabase = getSupabaseServerClient();
   const { error } = await supabase.from("leads").update({ status }).eq("id", leadId);
   if (error) throw error;
+
+  // Feed the signals panel with real team activity. Non-fatal on failure.
+  try {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("company_name")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (lead) {
+      await supabase.from("lead_events").insert({
+        lead_id: leadId,
+        event_text: `${lead.company_name} → ${status}`,
+        event_type: "status_change",
+      });
+    }
+  } catch {
+    // ignore — the status update itself already succeeded
+  }
 }
 
 export async function updateLeadNotes(
