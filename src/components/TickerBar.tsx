@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 interface RatePair {
   pair: string;
   value: number;
+  change: number | null;
+  changePct: number | null;
 }
 
 export default function TickerBar() {
   const [pairs, setPairs] = useState<RatePair[]>([]);
-  const [prevPairs, setPrevPairs] = useState<Record<string, number>>({});
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
@@ -28,12 +29,7 @@ export default function TickerBar() {
         }
 
         setError(null);
-        setPairs((current) => {
-          const prevMap: Record<string, number> = {};
-          current.forEach((p) => (prevMap[p.pair] = p.value));
-          setPrevPairs(prevMap);
-          return data.pairs;
-        });
+        setPairs(data.pairs);
         setUpdatedAt(new Date().toLocaleTimeString());
       } catch {
         if (!cancelled) setError("Connection lost");
@@ -51,12 +47,13 @@ export default function TickerBar() {
   const items = pairs.length > 0 ? [...pairs, ...pairs] : [];
 
   return (
-    <div className="w-full overflow-hidden border-b border-emerald-900 bg-neutral-950">
+    <div className="w-full overflow-hidden border-b border-amber-900/60 bg-neutral-950">
       <div className="flex items-center">
-        <div className="z-10 flex shrink-0 items-center gap-2 border-r border-emerald-900 bg-neutral-950 px-3 py-2 text-[11px] font-semibold tracking-widest text-emerald-500">
+        <div className="z-10 flex shrink-0 items-center gap-2 border-r border-amber-900/60 bg-neutral-950 px-3 py-2 text-[11px] font-semibold tracking-widest text-amber-400">
+          <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
           FX LIVE
           {updatedAt && (
-            <span className="hidden text-[10px] font-normal text-neutral-500 sm:inline">
+            <span className="tabular hidden text-[10px] font-normal text-neutral-500 sm:inline">
               {updatedAt}
             </span>
           )}
@@ -72,28 +69,37 @@ export default function TickerBar() {
               Connecting to FX feed…
             </div>
           ) : (
-            <div className="animate-ticker flex w-max gap-8 whitespace-nowrap py-2">
+            <div className="animate-ticker flex w-max gap-7 whitespace-nowrap py-2">
               {items.map((p, i) => {
-                const prev = prevPairs[p.pair];
                 const dir =
-                  prev === undefined ? "flat" : p.value > prev ? "up" : p.value < prev ? "down" : "flat";
+                  p.change === null || p.change === 0
+                    ? "flat"
+                    : p.change > 0
+                      ? "up"
+                      : "down";
+                const dirClass =
+                  dir === "up"
+                    ? "text-emerald-400"
+                    : dir === "down"
+                      ? "text-red-400"
+                      : "text-neutral-500";
                 return (
-                  <div key={`${p.pair}-${i}`} className="flex items-center gap-2 px-2 text-xs">
-                    <span className="font-semibold text-neutral-300">{p.pair}</span>
-                    <span
-                      className={
-                        dir === "up"
-                          ? "text-emerald-400"
-                          : dir === "down"
-                            ? "text-red-400"
-                            : "text-neutral-400"
-                      }
-                    >
+                  <div
+                    key={`${p.pair}-${i}`}
+                    className="flex items-baseline gap-2 px-2 text-xs"
+                  >
+                    <span className="text-[10px] font-semibold tracking-wider text-neutral-400">
+                      {p.pair}
+                    </span>
+                    <span className="tabular font-semibold text-amber-300">
                       {p.value.toFixed(4)}
                     </span>
-                    <span className="text-[10px]">
-                      {dir === "up" ? "▲" : dir === "down" ? "▼" : "•"}
-                    </span>
+                    {p.changePct !== null && (
+                      <span className={`tabular text-[10px] ${dirClass}`}>
+                        {dir === "up" ? "▲" : dir === "down" ? "▼" : "•"}
+                        {Math.abs(p.changePct).toFixed(2)}%
+                      </span>
+                    )}
                   </div>
                 );
               })}

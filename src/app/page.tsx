@@ -6,6 +6,8 @@ import SignalsFeed from "@/components/SignalsFeed";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
 import TerminalFooter from "@/components/TerminalFooter";
+import KpiStrip from "@/components/KpiStrip";
+import LiveClock from "@/components/LiveClock";
 import {
   getApolloCreditsUsed,
   getContactsByLeadIds,
@@ -31,7 +33,42 @@ async function LeadBoardSection() {
       contacts: contactsByLead[lead.id] ?? [],
       isExistingClient: findMatchingClient(lead, existingClients) !== null,
     }));
-    return <LeadBoard leads={scored} />;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const countBy = (status: string) =>
+      scored.filter((l) => l.status === status).length;
+    const dueCount = scored.filter(
+      (l) => l.follow_up_date && l.follow_up_date <= today
+    ).length;
+    const avgScore =
+      scored.length > 0
+        ? Math.round(
+            scored.reduce((sum, l) => sum + l.fx_opportunity_score, 0) / scored.length
+          )
+        : 0;
+    const enrichedContacts = scored.reduce((sum, l) => sum + l.contacts.length, 0);
+
+    const kpis = [
+      { label: "Leads", value: String(scored.length) },
+      { label: "Prospects", value: String(countBy("Prospect")), tone: "cyan" as const },
+      { label: "Clients", value: String(countBy("Client")), tone: "emerald" as const },
+      { label: "Contacted", value: String(countBy("Contacted")) },
+      {
+        label: "Follow-ups due",
+        value: String(dueCount),
+        tone: dueCount > 0 ? ("warn" as const) : ("muted" as const),
+        hint: "Leads with a follow-up date of today or earlier",
+      },
+      { label: "Avg FX score", value: String(avgScore) },
+      { label: "Contacts found", value: String(enrichedContacts), tone: "muted" as const },
+    ];
+
+    return (
+      <div className="flex flex-col gap-3">
+        <KpiStrip kpis={kpis} />
+        <LeadBoard leads={scored} />
+      </div>
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return (
@@ -51,21 +88,22 @@ export default async function Home() {
       <div className="flex min-h-screen flex-col">
         <TickerBar />
 
-        <header className="flex items-center justify-between border-b border-emerald-900 bg-neutral-950 px-4 py-3">
-          <div>
+        <header className="flex items-center justify-between border-b border-emerald-900 bg-neutral-950 px-4 py-2.5">
+          <div className="flex items-baseline gap-4">
             <h1 className="terminal-glow text-sm font-bold tracking-widest text-emerald-500">
               FX LEAD TERMINAL
             </h1>
-            <p className="text-[10px] text-neutral-500">
-              FX sales intelligence · lead scoring · signals
-            </p>
+            <span className="hidden text-[10px] text-neutral-600 lg:inline">
+              MONEX USA · SALES INTELLIGENCE
+            </span>
           </div>
           <nav className="flex items-center gap-4 text-xs">
+            <LiveClock />
             <ApolloCreditsCounter />
-            <Link href="/discover" className="text-neutral-400 hover:text-emerald-400">
+            <Link href="/discover" className="text-neutral-400 hover:text-amber-400">
               DISCOVER
             </Link>
-            <Link href="/settings" className="text-neutral-400 hover:text-emerald-400">
+            <Link href="/settings" className="text-neutral-400 hover:text-amber-400">
               SETTINGS
             </Link>
             <form action="/api/logout" method="POST">

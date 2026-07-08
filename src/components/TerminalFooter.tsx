@@ -27,21 +27,24 @@ export default function TerminalFooter() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router]);
 
+  const keyChip =
+    "mr-1 inline-block rounded-[2px] bg-amber-400 px-1 py-px text-[9px] font-bold leading-none text-black";
+
   return (
-    <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-emerald-900 bg-neutral-950 px-4 py-1.5 text-[10px] text-neutral-600">
-      <Link href="/" className="hover:text-emerald-400">
-        <kbd className="text-emerald-600">F1</kbd> TERMINAL
+    <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-emerald-900 bg-neutral-950 px-4 py-1.5 text-[10px] text-neutral-500">
+      <Link href="/" className="hover:text-amber-300">
+        <kbd className={keyChip}>F1</kbd> TERMINAL
       </Link>
-      <Link href="/discover" className="hover:text-emerald-400">
-        <kbd className="text-emerald-600">F2</kbd> DISCOVER
+      <Link href="/discover" className="hover:text-amber-300">
+        <kbd className={keyChip}>F2</kbd> DISCOVER
       </Link>
-      <Link href="/settings" className="hover:text-emerald-400">
-        <kbd className="text-emerald-600">F3</kbd> SETTINGS
+      <Link href="/settings" className="hover:text-amber-300">
+        <kbd className={keyChip}>F3</kbd> SETTINGS
       </Link>
-      <button onClick={() => router.refresh()} className="hover:text-emerald-400">
-        <kbd className="text-emerald-600">F9</kbd> REFRESH
+      <button onClick={() => router.refresh()} className="hover:text-amber-300">
+        <kbd className={keyChip}>F9</kbd> REFRESH
       </button>
-      <span className="ml-auto">MONEX USA · FX LEAD TERMINAL</span>
+      <span className="ml-auto text-neutral-700">MONEX USA · FX LEAD TERMINAL v2.0</span>
     </footer>
   );
 }

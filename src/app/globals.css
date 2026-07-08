@@ -3,6 +3,11 @@
 :root {
   --background: #000000;
   --foreground: #d1fae5;
+  /* Bloomberg-style data accents */
+  --data-amber: #fbbf24;
+  --data-amber-dim: #b45309;
+  --up: #34d399;
+  --down: #f87171;
 }
 
 @theme inline {
@@ -19,7 +24,7 @@ body {
 }
 
 ::selection {
-  background: rgba(16, 185, 129, 0.35);
+  background: rgba(251, 191, 36, 0.3);
 }
 
 ::-webkit-scrollbar {
@@ -32,8 +37,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #14532d;
+  background: #3f3f2d;
   border: 2px solid #050505;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #78350f;
 }
 
 @keyframes ticker-scroll {
@@ -49,7 +58,11 @@ body {
   animation: ticker-scroll 40s linear infinite;
 }
 
-/* CRT scanline overlay for a Bloomberg-terminal feel */
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* CRT scanline overlay — kept deliberately faint for the professional look */
 .crt-overlay {
   pointer-events: none;
   position: fixed;
@@ -57,8 +70,8 @@ body {
   z-index: 9999;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.025) 0px,
-    rgba(255, 255, 255, 0.025) 1px,
+    rgba(255, 255, 255, 0.018) 0px,
+    rgba(255, 255, 255, 0.018) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -66,5 +79,46 @@ body {
 }
 
 .terminal-glow {
-  text-shadow: 0 0 6px rgba(16, 185, 129, 0.35);
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
+}
+
+.amber-glow {
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+}
+
+/* Live-status pulse dot */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Data figures: align digit columns in tables and tickers */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zebra striping for the lead board */
+.zebra tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.zebra tbody tr:nth-child(odd) td.sticky-cell {
+  background: #0c0c0b;
+}
+
+.zebra tbody tr:nth-child(even) td.sticky-cell {
+  background: #0a0a0a;
+}
+
+.zebra tbody tr:hover td.sticky-cell {
+  background: #171717;
 }

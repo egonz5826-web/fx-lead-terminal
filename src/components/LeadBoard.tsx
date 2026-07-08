@@ -8,6 +8,7 @@ import LeadContactsCell from "./LeadContactsCell";
 import StatusDropdown from "./StatusDropdown";
 import OwnerDropdown from "./OwnerDropdown";
 import NotesFollowUp from "./NotesFollowUp";
+import ScoreBar from "./ScoreBar";
 
 export type LeadWithContacts = LeadWithScore & {
   contacts: Contact[];
@@ -36,12 +37,6 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "status", label: "Status" },
   { key: "owner", label: "Owner" },
 ];
-
-function scoreColor(score: number): string {
-  if (score >= 70) return "text-emerald-400";
-  if (score >= 40) return "text-amber-400";
-  return "text-red-400";
-}
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -282,34 +277,42 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
       )}
 
       <div className="max-h-[70vh] overflow-auto">
-        <table className="w-full min-w-[1450px] border-collapse text-xs">
+        <table className="zebra w-full min-w-[1450px] border-collapse text-xs">
           <thead className="sticky top-0 z-20 bg-neutral-950">
-            <tr className="border-b border-neutral-800 text-left text-neutral-400">
-              <th className="sticky left-0 z-30 w-8 bg-neutral-950 px-2 py-2">
+            <tr className="border-b border-neutral-800 text-left text-neutral-500">
+              <th className="sticky left-0 z-30 w-8 bg-neutral-950 px-2 py-1.5">
                 <input
                   type="checkbox"
                   checked={allVisibleSelected}
                   onChange={toggleSelectAllVisible}
-                  className="accent-emerald-500"
+                  className="accent-amber-400"
                 />
               </th>
               {COLUMNS.map((col, i) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
-                  className={`cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold hover:text-emerald-400 ${
+                  className={`cursor-pointer select-none whitespace-nowrap px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider hover:text-amber-400 ${
                     i === 0 ? "sticky left-8 z-30 bg-neutral-950" : ""
                   }`}
                 >
                   {col.label}
                   {sortKey === col.key && (
-                    <span className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>
+                    <span className="ml-1 text-amber-400">
+                      {sortDir === "asc" ? "▲" : "▼"}
+                    </span>
                   )}
                 </th>
               ))}
-              <th className="whitespace-nowrap px-3 py-2 font-semibold">Phone</th>
-              <th className="whitespace-nowrap px-3 py-2 font-semibold">Contacts</th>
-              <th className="whitespace-nowrap px-3 py-2 font-semibold">Notes / Follow-up</th>
+              <th className="whitespace-nowrap px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                Phone
+              </th>
+              <th className="whitespace-nowrap px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                Contacts
+              </th>
+              <th className="whitespace-nowrap px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                Notes / Follow-up
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -318,15 +321,15 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                 key={lead.id}
                 className="border-b border-neutral-900 hover:bg-neutral-900/60"
               >
-                <td className="sticky left-0 z-10 w-8 bg-neutral-950 px-2 py-2">
+                <td className="sticky-cell sticky left-0 z-10 w-8 px-2 py-1.5">
                   <input
                     type="checkbox"
                     checked={selected.has(lead.id)}
                     onChange={() => toggleSelected(lead.id)}
-                    className="accent-emerald-500"
+                    className="accent-amber-400"
                   />
                 </td>
-                <td className="sticky left-8 z-10 whitespace-nowrap bg-neutral-950 px-3 py-2 font-medium text-neutral-100">
+                <td className="sticky-cell sticky left-8 z-10 whitespace-nowrap px-3 py-1.5 font-medium text-neutral-100">
                   {lead.company_name}
                   {lead.isExistingClient && (
                     <span
@@ -337,29 +340,25 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     </span>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-400">
                   {lead.city}, {lead.state}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-400">
                   {lead.import_corridors}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
+                <td className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300">
                   {lead.est_annual_teu.toLocaleString()}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
+                <td className="whitespace-nowrap px-3 py-1.5 text-neutral-400">
                   {lead.currency_exposure}
                 </td>
-                <td
-                  className={`whitespace-nowrap px-3 py-2 font-semibold ${scoreColor(
-                    lead.fx_opportunity_score
-                  )}`}
-                >
-                  {lead.fx_opportunity_score}
+                <td className="whitespace-nowrap px-3 py-1.5">
+                  <ScoreBar score={lead.fx_opportunity_score} />
                 </td>
-                <td className="max-w-[220px] truncate px-3 py-2 text-neutral-300">
+                <td className="max-w-[220px] truncate px-3 py-1.5 text-neutral-400">
                   {lead.latest_signal}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2">
+                <td className="whitespace-nowrap px-3 py-1.5">
                   <StatusDropdown
                     leadId={lead.id}
                     companyName={lead.company_name}
@@ -368,17 +367,17 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     onStatusChange={handleStatusChange}
                   />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2">
+                <td className="whitespace-nowrap px-3 py-1.5">
                   <OwnerDropdown
                     leadId={lead.id}
                     owner={lead.owner}
                     onOwnerChange={handleOwnerChange}
                   />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-neutral-300">
-                  {lead.phone ?? "—"}
+                <td className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300">
+                  {lead.phone ?? <span className="text-neutral-600">—</span>}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-1.5">
                   <LeadContactsCell
                     leadId={lead.id}
                     companyName={lead.company_name}
@@ -386,7 +385,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                     initialContacts={lead.contacts}
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-1.5">
                   <NotesFollowUp
                     leadId={lead.id}
                     notes={lead.notes}

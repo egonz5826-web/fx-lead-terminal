@@ -25,14 +25,14 @@ export default function NotesFollowUp({
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex items-center gap-1">
       <input
         type="text"
         value={notesValue}
         onChange={(e) => setNotesValue(e.target.value)}
         onBlur={() => save({ notes: notesValue })}
         placeholder="Add note…"
-        className="w-40 border border-neutral-800 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-emerald-700"
+        className="w-36 border border-neutral-800 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-amber-600"
       />
       <input
         type="date"
@@ -43,7 +43,7 @@ export default function NotesFollowUp({
           save({ follow_up_date: value });
           onFollowUpDateChange?.(leadId, value);
         }}
-        className="w-40 border border-neutral-800 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-emerald-700"
+        className="w-32 border border-neutral-800 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-amber-600"
       />
     </div>
   );
