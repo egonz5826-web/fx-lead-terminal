@@ -34,15 +34,31 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <input type="hidden" name="from" value={from} />
             <div>
               <label className="mb-1 block text-[10px] uppercase tracking-widest text-neutral-500">
-                Terminal Password
+                Username
+              </label>
+              <div className="mb-3 flex items-center border border-neutral-700 bg-black focus-within:border-amber-500">
+                <span className="pl-3 text-xs text-amber-500">&gt;</span>
+                <input
+                  type="text"
+                  name="username"
+                  autoFocus
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  required
+                  className="w-full bg-transparent px-2 py-2 text-sm text-amber-300 outline-none"
+                  placeholder="username"
+                />
+              </div>
+              <label className="mb-1 block text-[10px] uppercase tracking-widest text-neutral-500">
+                Password
               </label>
               <div className="flex items-center border border-neutral-700 bg-black focus-within:border-amber-500">
                 <span className="pl-3 text-xs text-amber-500">&gt;</span>
                 <input
                   type="password"
                   name="password"
-                  autoFocus
                   required
+                  autoComplete="current-password"
                   className="w-full bg-transparent px-2 py-2 text-sm text-amber-300 outline-none"
                   placeholder="••••••••"
                 />
@@ -51,7 +67,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
             {hasError && (
               <div className="border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-400">
-                ⚠ ACCESS DENIED — incorrect password
+                ⚠ ACCESS DENIED — incorrect username or password
               </div>
             )}
 

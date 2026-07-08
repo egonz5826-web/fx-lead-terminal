@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getLeadById } from "@/lib/data";
 import { searchContacts, ApolloError } from "@/lib/apollo";
+import { getSessionUser } from "@/lib/users";
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
     const { leadId } = await request.json();
     if (!leadId) {
       return NextResponse.json({ error: "Missing leadId." }, { status: 400 });
@@ -12,6 +16,9 @@ export async function POST(request: Request) {
     const lead = await getLeadById(leadId);
     if (!lead) {
       return NextResponse.json({ error: "Lead not found." }, { status: 404 });
+    }
+    if (user.role !== "admin" && lead.owner !== user.username) {
+      return NextResponse.json({ error: "Not your lead." }, { status: 403 });
     }
     if (!lead.website) {
       return NextResponse.json(

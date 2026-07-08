@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { appendExistingClients, clearExistingClients } from "@/lib/data";
+import { getSessionUser } from "@/lib/users";
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionUser();
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Admin only." }, { status: 403 });
+    }
+
     const { rows, reset } = await request.json();
 
     if (!Array.isArray(rows)) {

@@ -2,8 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase";
+import { getSessionUser } from "@/lib/users";
 
 export async function updateWeights(formData: FormData) {
+  const user = await getSessionUser();
+  if (!user || user.role !== "admin") throw new Error("Admin only.");
+
   const volume = Number(formData.get("weight_volume"));
   const corridor = Number(formData.get("weight_corridor"));
   const growth = Number(formData.get("weight_growth"));

@@ -28,7 +28,7 @@ const KEYWORD_SUGGESTIONS = [
   "electronics",
 ];
 
-export default function DiscoverForm() {
+export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean }) {
   const { setCreditsUsed } = useApolloUsage();
 
   const [location, setLocation] = useState("Texas, US");
@@ -39,7 +39,7 @@ export default function DiscoverForm() {
 
   const [corridor, setCorridor] = useState("Mexico → USA");
   const [currencyExposure, setCurrencyExposure] = useState("USD/MXN");
-  const [owner, setOwner] = useState(OWNER_OPTIONS[0]);
+  const [owner, setOwner] = useState(OWNER_OPTIONS[0].value);
 
   const [results, setResults] = useState<OrganizationSearchResult[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -194,22 +194,24 @@ export default function DiscoverForm() {
             onChange={setCurrencyExposure}
             placeholder="USD/MXN"
           />
-          <label className="block">
-            <span className="mb-1 block text-[10px] uppercase tracking-wider text-neutral-400">
-              Owner
-            </span>
-            <select
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              className="w-full border border-neutral-700 bg-black px-2 py-1.5 text-xs text-emerald-400 outline-none focus:border-emerald-600"
-            >
-              {OWNER_OPTIONS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isAdmin && (
+            <label className="block">
+              <span className="mb-1 block text-[10px] uppercase tracking-wider text-neutral-400">
+                Assign to
+              </span>
+              <select
+                value={owner}
+                onChange={(e) => setOwner(e.target.value)}
+                className="w-full border border-neutral-700 bg-black px-2 py-1.5 text-xs text-emerald-400 outline-none focus:border-emerald-600"
+              >
+                {OWNER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <button

@@ -17,13 +17,15 @@ import {
 } from "@/lib/data";
 import { withScores } from "@/lib/scoring";
 import { findMatchingClient } from "@/lib/matching";
+import { getSessionUser } from "@/lib/users";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-async function LeadBoardSection() {
+async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: string }) {
   try {
     const [leads, weights, existingClients] = await Promise.all([
-      getLeads(),
+      getLeads(isAdmin ? undefined : owner),
       getWeights(),
       getExistingClients(),
     ]);
@@ -66,7 +68,7 @@ async function LeadBoardSection() {
     return (
       <div className="flex flex-col gap-3">
         <KpiStrip kpis={kpis} />
-        <LeadBoard leads={scored} />
+        <LeadBoard leads={scored} isAdmin={isAdmin} />
       </div>
     );
   } catch (err) {
@@ -81,6 +83,10 @@ async function LeadBoardSection() {
 }
 
 export default async function Home() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const isAdmin = user.role === "admin";
   const creditsUsed = await getApolloCreditsUsed().catch(() => 0);
 
   return (
@@ -100,12 +106,21 @@ export default async function Home() {
           <nav className="flex items-center gap-4 text-xs">
             <LiveClock />
             <ApolloCreditsCounter />
+            <span className="border border-neutral-800 bg-black px-2 py-1 text-[10px] text-neutral-400">
+              {user.display_name}
+              {isAdmin && <span className="ml-1 text-amber-400">ADMIN</span>}
+            </span>
             <Link href="/discover" className="text-neutral-400 hover:text-amber-400">
               DISCOVER
             </Link>
-            <Link href="/settings" className="text-neutral-400 hover:text-amber-400">
-              SETTINGS
+            <Link href="/account" className="text-neutral-400 hover:text-amber-400">
+              ACCOUNT
             </Link>
+            {isAdmin && (
+              <Link href="/settings" className="text-neutral-400 hover:text-amber-400">
+                SETTINGS
+              </Link>
+            )}
             <form action="/api/logout" method="POST">
               <button className="text-neutral-400 hover:text-red-400">LOGOUT</button>
             </form>
@@ -121,7 +136,7 @@ export default async function Home() {
                 </div>
               }
             >
-              <LeadBoardSection />
+              <LeadBoardSection isAdmin={isAdmin} owner={user.username} />
             </Suspense>
           </div>
           <div className="lg:w-1/3">

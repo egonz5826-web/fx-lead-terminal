@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Contact, LeadStatus, LeadWithScore } from "@/lib/types";
 import { LEAD_STATUSES } from "@/lib/types";
-import { OWNER_OPTIONS } from "@/lib/team";
+import { OWNER_OPTIONS, ownerLabel } from "@/lib/team";
 import LeadContactsCell from "./LeadContactsCell";
 import StatusDropdown from "./StatusDropdown";
 import OwnerDropdown from "./OwnerDropdown";
@@ -42,7 +42,13 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
+export default function LeadBoard({
+  leads,
+  isAdmin = false,
+}: {
+  leads: LeadWithContacts[];
+  isAdmin?: boolean;
+}) {
   const [rows, setRows] = useState(leads);
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -53,7 +59,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
   const [dueOnly, setDueOnly] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkOwner, setBulkOwner] = useState(OWNER_OPTIONS[0]);
+  const [bulkOwner, setBulkOwner] = useState(OWNER_OPTIONS[0].value);
   const [bulkAssigning, setBulkAssigning] = useState(false);
 
   const owners = useMemo(
@@ -206,18 +212,20 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
             </option>
           ))}
         </select>
-        <select
-          value={ownerFilter}
-          onChange={(e) => setOwnerFilter(e.target.value)}
-          className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
-        >
-          <option value="All">All owners</option>
-          {owners.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
+        {isAdmin && (
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+          >
+            <option value="All">All owners</option>
+            {owners.map((o) => (
+              <option key={o} value={o}>
+                {ownerLabel(o)}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => setDueOnly((d) => !d)}
           className={`border px-2 py-1 text-[11px] font-semibold ${
@@ -243,7 +251,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
         )}
       </div>
 
-      {selected.size > 0 && (
+      {isAdmin && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-emerald-900 bg-emerald-950/20 px-3 py-2">
           <span className="text-[11px] font-semibold text-emerald-400">
             {selected.size} selected
@@ -255,8 +263,8 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
             className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
           >
             {OWNER_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {o}
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>
@@ -280,20 +288,24 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
         <table className="zebra w-full min-w-[1450px] border-collapse text-xs">
           <thead className="sticky top-0 z-20 bg-neutral-950">
             <tr className="border-b border-neutral-800 text-left text-neutral-500">
-              <th className="sticky left-0 z-30 w-8 bg-neutral-950 px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleSelectAllVisible}
-                  className="accent-amber-400"
-                />
-              </th>
+              {isAdmin && (
+                <th className="sticky left-0 z-30 w-8 bg-neutral-950 px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    className="accent-amber-400"
+                  />
+                </th>
+              )}
               {COLUMNS.map((col, i) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
                   className={`cursor-pointer select-none whitespace-nowrap px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider hover:text-amber-400 ${
-                    i === 0 ? "sticky left-8 z-30 bg-neutral-950" : ""
+                    i === 0
+                      ? `sticky z-30 bg-neutral-950 ${isAdmin ? "left-8" : "left-0"}`
+                      : ""
                   }`}
                 >
                   {col.label}
@@ -321,15 +333,21 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                 key={lead.id}
                 className="border-b border-neutral-900 hover:bg-neutral-900/60"
               >
-                <td className="sticky-cell sticky left-0 z-10 w-8 px-2 py-1.5">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(lead.id)}
-                    onChange={() => toggleSelected(lead.id)}
-                    className="accent-amber-400"
-                  />
-                </td>
-                <td className="sticky-cell sticky left-8 z-10 whitespace-nowrap px-3 py-1.5 font-medium text-neutral-100">
+                {isAdmin && (
+                  <td className="sticky-cell sticky left-0 z-10 w-8 px-2 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(lead.id)}
+                      onChange={() => toggleSelected(lead.id)}
+                      className="accent-amber-400"
+                    />
+                  </td>
+                )}
+                <td
+                  className={`sticky-cell sticky z-10 whitespace-nowrap px-3 py-1.5 font-medium text-neutral-100 ${
+                    isAdmin ? "left-8" : "left-0"
+                  }`}
+                >
                   {lead.company_name}
                   <a
                     href={`https://www.importyeti.com/search?q=${encodeURIComponent(lead.company_name)}`}
@@ -377,11 +395,15 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                   />
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5">
-                  <OwnerDropdown
-                    leadId={lead.id}
-                    owner={lead.owner}
-                    onOwnerChange={handleOwnerChange}
-                  />
+                  {isAdmin ? (
+                    <OwnerDropdown
+                      leadId={lead.id}
+                      owner={lead.owner}
+                      onOwnerChange={handleOwnerChange}
+                    />
+                  ) : (
+                    <span className="text-neutral-400">{ownerLabel(lead.owner)}</span>
+                  )}
                 </td>
                 <td className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300">
                   {lead.phone ?? <span className="text-neutral-600">—</span>}
@@ -406,7 +428,7 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-3 py-6 text-center text-neutral-500">
+                <td colSpan={isAdmin ? 13 : 12} className="px-3 py-6 text-center text-neutral-500">
                   No leads match these filters.
                 </td>
               </tr>

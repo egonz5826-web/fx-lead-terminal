@@ -1,13 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import DiscoverForm from "@/components/DiscoverForm";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
 import TerminalFooter from "@/components/TerminalFooter";
 import { getApolloCreditsUsed } from "@/lib/data";
+import { getSessionUser } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
 export default async function DiscoverPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
   const creditsUsed = await getApolloCreditsUsed().catch(() => 0);
 
   return (
@@ -31,7 +35,7 @@ export default async function DiscoverPage() {
         </header>
 
         <main className="mx-auto w-full max-w-3xl flex-1 p-6">
-          <DiscoverForm />
+          <DiscoverForm isAdmin={user.role === "admin"} />
         </main>
 
         <TerminalFooter />

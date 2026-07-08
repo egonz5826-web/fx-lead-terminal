@@ -6,15 +6,26 @@ import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 import { enrichOrganization } from "./apollo";
 import { normalizeDomain } from "./matching";
 
-export async function getLeads(): Promise<Lead[]> {
+// Pass an owner to restrict to that rep's leads; omit for the full board (admin).
+export async function getLeads(owner?: string): Promise<Lead[]> {
   const supabase = getSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .order("company_name", { ascending: true });
+  let query = supabase.from("leads").select("*").order("company_name", { ascending: true });
+  if (owner) query = query.eq("owner", owner);
+  const { data, error } = await query;
 
   if (error) throw error;
   return data ?? [];
+}
+
+// Ownership guard for mutating routes: true if the user may modify this lead.
+export async function userOwnsLead(leadId: string, owner: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase
+    .from("leads")
+    .select("owner")
+    .eq("id", leadId)
+    .maybeSingle();
+  return data?.owner === owner;
 }
 
 export interface DiscoveryContext {

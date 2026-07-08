@@ -1,14 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getExistingClientsCount, getWeights } from "@/lib/data";
 import { DEFAULT_WEIGHTS } from "@/lib/scoring";
 import { updateWeights } from "./actions";
 import WeightField from "@/components/WeightField";
 import ClientImportForm from "@/components/ClientImportForm";
 import TerminalFooter from "@/components/TerminalFooter";
+import { getSessionUser } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.role !== "admin") redirect("/");
+
   let weights = DEFAULT_WEIGHTS;
   let connected = true;
   try {

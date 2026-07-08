@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { OWNER_OPTIONS } from "@/lib/team";
+import { OWNER_OPTIONS, UNASSIGNED } from "@/lib/team";
 
 export default function OwnerDropdown({
   leadId,
@@ -31,16 +31,17 @@ export default function OwnerDropdown({
     }
   }
 
+  const known = OWNER_OPTIONS.some((o) => o.value === current);
   return (
     <select
-      value={OWNER_OPTIONS.includes(current) ? current : "Unassigned"}
+      value={known ? current : UNASSIGNED}
       onChange={handleChange}
       disabled={saving}
       className="border border-neutral-700 bg-black px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-emerald-600 disabled:opacity-50"
     >
       {OWNER_OPTIONS.map((o) => (
-        <option key={o} value={o}>
-          {o}
+        <option key={o.value} value={o.value}>
+          {o.label}
         </option>
       ))}
     </select>

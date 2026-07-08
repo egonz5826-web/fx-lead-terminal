@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const SESSION_COOKIE = "fx_session";
+import { verifySession } from "./lib/session";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,10 +13,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
-  const expected = process.env.APP_PASSWORD;
+  const session = request.cookies.get("fx_session")?.value;
+  const username = verifySession(session);
 
-  if (!expected || session !== expected) {
+  if (!username) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);

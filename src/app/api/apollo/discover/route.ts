@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { discoverCompanies, ApolloError } from "@/lib/apollo";
 import { getKnownDomains, incrementApolloCreditsUsed } from "@/lib/data";
 import { normalizeDomain } from "@/lib/matching";
+import { getSessionUser } from "@/lib/users";
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
     const { location, keywords, minEmployees, maxEmployees, page } = await request.json();
 
     if (!location && !keywords) {
