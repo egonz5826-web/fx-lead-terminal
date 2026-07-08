@@ -196,6 +196,9 @@ interface ApolloOrganizationResult {
   website_url?: string | null;
   primary_domain?: string | null;
   sanitized_phone?: string | null;
+  organization_revenue_printed?: string | null;
+  organization_headcount_twelve_month_growth?: number | null;
+  intent_strength?: string | null;
 }
 
 export interface OrganizationSearchResult {
@@ -203,6 +206,9 @@ export interface OrganizationSearchResult {
   name: string;
   website: string | null;
   phone: string | null;
+  revenue_printed: string | null;
+  growth_12mo: number | null;
+  intent_strength: string | null;
 }
 
 export interface DiscoverCompaniesParams {
@@ -262,6 +268,9 @@ export async function discoverCompanies(
     name: o.name ?? "Unknown",
     website: o.primary_domain ?? o.website_url ?? null,
     phone: o.sanitized_phone ?? null,
+    revenue_printed: o.organization_revenue_printed ?? null,
+    growth_12mo: o.organization_headcount_twelve_month_growth ?? null,
+    intent_strength: o.intent_strength ?? null,
   }));
 }
 
@@ -275,6 +284,8 @@ interface ApolloOrganizationEnrichResponse {
     estimated_num_employees?: number | null;
     industry?: string | null;
     sanitized_phone?: string | null;
+    annual_revenue?: number | null;
+    organization_headcount_twelve_month_growth?: number | null;
   } | null;
 }
 
@@ -284,6 +295,8 @@ export interface OrganizationDetails {
   estimated_employees: number | null;
   industry: string | null;
   phone: string | null;
+  annual_revenue: number | null;
+  growth_12mo: number | null;
 }
 
 export async function enrichOrganization(
@@ -316,5 +329,8 @@ export async function enrichOrganization(
     estimated_employees: data.organization.estimated_num_employees ?? null,
     industry: data.organization.industry ?? null,
     phone: data.organization.sanitized_phone ?? null,
+    annual_revenue: data.organization.annual_revenue ?? null,
+    growth_12mo:
+      data.organization.organization_headcount_twelve_month_growth ?? null,
   };
 }

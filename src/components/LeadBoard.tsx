@@ -331,6 +331,15 @@ export default function LeadBoard({ leads }: { leads: LeadWithContacts[] }) {
                 </td>
                 <td className="sticky-cell sticky left-8 z-10 whitespace-nowrap px-3 py-1.5 font-medium text-neutral-100">
                   {lead.company_name}
+                  <a
+                    href={`https://www.importyeti.com/search?q=${encodeURIComponent(lead.company_name)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="US customs import records (ImportYeti) — real shipment history, suppliers, and origin countries"
+                    className="ml-2 text-[9px] font-semibold tracking-wider text-neutral-600 hover:text-amber-400"
+                  >
+                    IMP↗
+                  </a>
                   {lead.isExistingClient && (
                     <span
                       className="ml-2 inline-block border border-red-800 bg-red-950 px-1.5 py-0.5 text-[9px] font-semibold text-red-400"

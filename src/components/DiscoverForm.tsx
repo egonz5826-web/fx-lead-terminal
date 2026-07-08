@@ -279,10 +279,40 @@ export default function DiscoverForm() {
                   className="accent-emerald-500"
                 />
                 <div className="flex-1">
-                  <div className="font-medium text-neutral-100">{r.name}</div>
+                  <div className="flex items-center gap-2 font-medium text-neutral-100">
+                    {r.name}
+                    {r.intent_strength && (
+                      <span className="border border-amber-700 bg-amber-950/50 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-amber-400">
+                        INTENT: {r.intent_strength}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-neutral-500">
                     {r.website ?? "no website"}
                     {r.phone ? ` · ${r.phone}` : ""}
+                    {r.revenue_printed ? (
+                      <>
+                        {" · "}
+                        <span className="text-amber-300">${r.revenue_printed} rev</span>
+                      </>
+                    ) : null}
+                    {r.growth_12mo !== null ? (
+                      <>
+                        {" · "}
+                        <span
+                          className={
+                            r.growth_12mo > 0
+                              ? "text-emerald-400"
+                              : r.growth_12mo < 0
+                                ? "text-red-400"
+                                : "text-neutral-500"
+                          }
+                        >
+                          {r.growth_12mo >= 0 ? "+" : ""}
+                          {(r.growth_12mo * 100).toFixed(0)}% HC yoy
+                        </span>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </li>

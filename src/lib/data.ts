@@ -23,9 +23,44 @@ export interface DiscoveryContext {
   owner: string;
 }
 
-function estimateVolumeScore(employees: number | null): number {
-  if (!employees) return 40;
-  return Math.max(20, Math.min(100, Math.round((employees / 500) * 100)));
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, Math.round(n)));
+}
+
+// Volume: log scale on annual revenue when Apollo has it ($1M→42, $10M→59,
+// $100M→76, $1B→93), falling back to headcount as a rough proxy.
+function volumeScore(
+  annualRevenue: number | null,
+  employees: number | null
+): number {
+  if (annualRevenue && annualRevenue > 0) {
+    return clamp(25 + 17 * Math.log10(annualRevenue / 100_000), 20, 98);
+  }
+  if (employees && employees > 0) {
+    return clamp(25 + 17 * Math.log10(employees * 250_000 / 100_000), 20, 98);
+  }
+  return 40;
+}
+
+// Growth: centered at 45 for flat headcount; +10% YoY→63, +20%→80, shrinking→<45.
+function growthScore(growth12mo: number | null): number {
+  if (growth12mo === null) return 50;
+  return clamp(45 + growth12mo * 175, 15, 95);
+}
+
+// Corridor: how much FX opportunity the lead's currency pair carries for an
+// FX payments/hedging pitch — peso volatility makes USD/MXN the sweet spot.
+const CORRIDOR_SCORES: Record<string, number> = {
+  "USD/MXN": 75,
+  "USD/CNY": 65,
+  "USD/JPY": 60,
+  "EUR/USD": 60,
+  "GBP/USD": 60,
+  "USD/CAD": 55,
+};
+
+function corridorScore(currencyExposure: string): number {
+  return CORRIDOR_SCORES[currencyExposure.trim().toUpperCase()] ?? 60;
 }
 
 export interface CreateLeadsResult {
@@ -76,6 +111,15 @@ export async function createLeadsFromDiscovery(
       }
 
       const employees = details?.estimated_employees ?? null;
+      const revenue = details?.annual_revenue ?? null;
+      const growth = details?.growth_12mo ?? c.growth_12mo ?? null;
+
+      const signalParts: string[] = [];
+      if (details?.industry) signalParts.push(details.industry);
+      if (revenue) signalParts.push(`~$${(revenue / 1_000_000).toFixed(1)}M rev`);
+      if (growth !== null)
+        signalParts.push(`${growth >= 0 ? "+" : ""}${(growth * 100).toFixed(0)}% HC growth`);
+
       return {
         company_name: c.name,
         website: c.website,
@@ -85,11 +129,11 @@ export async function createLeadsFromDiscovery(
         import_corridors: context.corridor,
         currency_exposure: context.currencyExposure,
         est_annual_teu: employees ? employees * 80 : 5000,
-        volume_score: estimateVolumeScore(employees),
-        corridor_score: 60,
-        growth_score: 50,
-        latest_signal: details?.industry
-          ? `Discovered via Apollo — industry: ${details.industry}`
+        volume_score: volumeScore(revenue, employees),
+        corridor_score: corridorScore(context.currencyExposure),
+        growth_score: growthScore(growth),
+        latest_signal: signalParts.length
+          ? `Apollo: ${signalParts.join(" · ")}`
           : "Discovered via Apollo prospecting — scores are starting estimates",
         status: "New",
         owner: context.owner || "Unassigned",
@@ -107,6 +151,80 @@ export async function createLeadsFromDiscovery(
   }
 
   return { added: count ?? rows.length, skippedDuplicates };
+}
+
+export interface RescoreResult {
+  processed: number;
+  updated: number;
+  enrichFailed: number;
+  remaining: number;
+}
+
+// Re-scores a batch of leads with live Apollo firmographics (revenue,
+// headcount growth) and corridor-by-currency. Batched so callers can walk
+// the whole board without a single giant request.
+export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResult> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: leads, error, count } = await supabase
+    .from("leads")
+    .select("id, website, currency_exposure, volume_score, growth_score, phone, city, state", {
+      count: "exact",
+    })
+    .order("company_name", { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+
+  let updated = 0;
+  let enrichFailed = 0;
+  let enrichmentCallsMade = 0;
+
+  for (const lead of leads ?? []) {
+    let details: Awaited<ReturnType<typeof enrichOrganization>> = null;
+    if (lead.website) {
+      try {
+        details = await enrichOrganization(lead.website);
+        enrichmentCallsMade += 1;
+      } catch {
+        enrichFailed += 1;
+      }
+    }
+
+    const fields: Record<string, unknown> = {
+      corridor_score: corridorScore(lead.currency_exposure ?? ""),
+    };
+    if (details) {
+      fields.volume_score = volumeScore(
+        details.annual_revenue,
+        details.estimated_employees
+      );
+      fields.growth_score = growthScore(details.growth_12mo);
+      if (details.estimated_employees) {
+        fields.est_annual_teu = details.estimated_employees * 80;
+      }
+      if (!lead.phone && details.phone) fields.phone = details.phone;
+      if ((!lead.city || lead.city === "Unknown") && details.city) fields.city = details.city;
+      if ((!lead.state || lead.state === "Unknown") && details.state) fields.state = details.state;
+    }
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update(fields)
+      .eq("id", lead.id);
+    if (!updateError) updated += 1;
+  }
+
+  if (enrichmentCallsMade > 0) {
+    await incrementApolloCreditsUsedBy(enrichmentCallsMade);
+  }
+
+  const total = count ?? 0;
+  return {
+    processed: leads?.length ?? 0,
+    updated,
+    enrichFailed,
+    remaining: Math.max(0, total - (offset + (leads?.length ?? 0))),
+  };
 }
 
 export async function updateLeadStatus(leadId: string, status: string): Promise<void> {
