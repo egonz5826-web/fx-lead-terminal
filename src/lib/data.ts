@@ -486,6 +486,58 @@ export async function getLeadPhonesByLeadIds(
   return grouped;
 }
 
+// Stores Seamless-sourced phone numbers on a lead, skipping any we already have
+// (Apollo's lead phone, known contact phones, or already-saved extra phones).
+// Returns the lead's full set of extra phones after the insert.
+export async function addSeamlessPhones(
+  leadId: string,
+  phones: string[]
+): Promise<{ added: number; phones: LeadPhone[] }> {
+  const supabase = getSupabaseServerClient();
+  // Normalize to bare digits, dropping a leading US country code so
+  // "+1 713-993-7640" and "713.993.7640" are recognized as the same number.
+  const norm = (p: string) => {
+    const d = p.replace(/[^\d]/g, "");
+    return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+  };
+
+  const [{ data: lead }, { data: contacts }, { data: existing }] = await Promise.all([
+    supabase.from("leads").select("phone").eq("id", leadId).maybeSingle(),
+    supabase.from("contacts").select("phone").eq("lead_id", leadId),
+    supabase.from("lead_phones").select("phone").eq("lead_id", leadId),
+  ]);
+
+  const known = new Set<string>();
+  if (lead?.phone) known.add(norm(lead.phone));
+  for (const c of contacts ?? []) if (c.phone) known.add(norm(c.phone));
+  for (const e of existing ?? []) known.add(norm(e.phone));
+
+  const toAdd: string[] = [];
+  const seen = new Set<string>();
+  for (const p of phones) {
+    const key = norm(p);
+    if (!key || known.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    toAdd.push(p);
+  }
+
+  if (toAdd.length > 0) {
+    await supabase
+      .from("lead_phones")
+      .upsert(
+        toAdd.map((phone) => ({ lead_id: leadId, phone, source: "seamless" })),
+        { onConflict: "lead_id,phone", ignoreDuplicates: true }
+      );
+  }
+
+  const { data: all } = await supabase
+    .from("lead_phones")
+    .select("*")
+    .eq("lead_id", leadId);
+
+  return { added: toAdd.length, phones: all ?? [] };
+}
+
 export async function updateLeadNotes(
   leadId: string,
   fields: { notes?: string; follow_up_date?: string | null }

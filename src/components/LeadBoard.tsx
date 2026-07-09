@@ -62,6 +62,8 @@ export default function LeadBoard({
   const [rows, setRows] = useState(leads);
   const [tab, setTab] = useState<Tab>(isAdmin ? "all" : "public");
   const [pickingId, setPickingId] = useState<string | null>(null);
+  const [seamlessId, setSeamlessId] = useState<string | null>(null);
+  const [seamlessMsg, setSeamlessMsg] = useState<Record<string, string>>({});
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -140,6 +142,33 @@ export default function LeadBoard({
           : l
       )
     );
+  }
+
+  async function handleSeamless(leadId: string) {
+    setSeamlessId(leadId);
+    setSeamlessMsg((m) => ({ ...m, [leadId]: "" }));
+    try {
+      const res = await fetch("/api/seamless/cross-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (Array.isArray(data.phones)) {
+          setRows((prev) =>
+            prev.map((l) => (l.id === leadId ? { ...l, extraPhones: data.phones } : l))
+          );
+        }
+        setSeamlessMsg((m) => ({ ...m, [leadId]: data.message ?? "" }));
+      } else {
+        setSeamlessMsg((m) => ({ ...m, [leadId]: data.error ?? "Failed." }));
+      }
+    } catch {
+      setSeamlessMsg((m) => ({ ...m, [leadId]: "Couldn't reach Seamless." }));
+    } finally {
+      setSeamlessId(null);
+    }
   }
 
   async function handlePick(leadId: string) {
@@ -688,6 +717,21 @@ export default function LeadBoard({
                 </td>
                 <td className="tabular px-3 py-1.5 text-amber-300">
                   <PhoneList primary={lead.phone} extras={lead.extraPhones} />
+                  {lead.contacts.length > 0 && (
+                    <button
+                      onClick={() => handleSeamless(lead.id)}
+                      disabled={seamlessId === lead.id}
+                      title="Cross-check phone numbers with Seamless.AI (uses Seamless credits)."
+                      className="mt-1 block text-[9px] font-semibold uppercase tracking-wider text-neutral-500 hover:text-emerald-400 disabled:opacity-50"
+                    >
+                      {seamlessId === lead.id ? "checking…" : "⊕ seamless"}
+                    </button>
+                  )}
+                  {seamlessMsg[lead.id] && (
+                    <div className="mt-0.5 max-w-[150px] text-[9px] leading-tight text-neutral-500">
+                      {seamlessMsg[lead.id]}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-1.5">
                   <LeadContactsCell
@@ -732,7 +776,10 @@ function PhoneList({
   extras?: LeadPhone[];
 }) {
   const seen = new Set<string>();
-  const norm = (p: string) => p.replace(/[^\d]/g, "");
+  const norm = (p: string) => {
+    const d = p.replace(/[^\d]/g, "");
+    return d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+  };
   const items: { phone: string; source: string }[] = [];
 
   if (primary) {
