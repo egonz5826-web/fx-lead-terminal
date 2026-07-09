@@ -8,8 +8,11 @@ export function proxy(request: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/login") ||
-    pathname === "/api/apollo/phone-webhook"
+    pathname === "/api/apollo/phone-webhook" ||
+    pathname.startsWith("/api/cron/")
   ) {
+    // Cron routes run unauthenticated (Vercel Cron has no session); they guard
+    // themselves with CRON_SECRET.
     return NextResponse.next();
   }
 
