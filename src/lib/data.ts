@@ -360,8 +360,8 @@ export async function updateLeadStatus(
         ? currentLead.claimed_at
         : new Date().toISOString();
   } else {
-    // New, No FX Need, or Already Assigned to a Consultant → out of anyone's
-    // private tab (public pool, or hidden if consultant-assigned).
+    // New, No FX Need, or Already a Monex Client → out of anyone's private tab
+    // (public pool, or hidden if already a Monex client).
     fields.owner = UNASSIGNED;
     fields.claimed_at = null;
   }

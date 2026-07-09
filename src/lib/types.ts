@@ -5,7 +5,7 @@ export type LeadStatus =
   | "No FX Need"
   | "Prospect"
   | "Client"
-  | "Already Assigned to a Consultant";
+  | "Already a Monex Client";
 
 export const LEAD_STATUSES: LeadStatus[] = [
   "New",
@@ -14,12 +14,12 @@ export const LEAD_STATUSES: LeadStatus[] = [
   "No FX Need",
   "Prospect",
   "Client",
-  "Already Assigned to a Consultant",
+  "Already a Monex Client",
 ];
 
 // Statuses that pull a lead into the picking rep's private "My Leads" tab.
 // (The Pick Lead button claims too, without changing status.) "New" and
-// "No FX Need" live in the public pool; "Already Assigned to a Consultant"
+// "No FX Need" live in the public pool; "Already a Monex Client"
 // is hidden from all reps.
 export const CLAIMING_STATUSES: LeadStatus[] = [
   "Contacted",
@@ -28,7 +28,7 @@ export const CLAIMING_STATUSES: LeadStatus[] = [
   "Client",
 ];
 
-export const HIDDEN_STATUS: LeadStatus = "Already Assigned to a Consultant";
+export const HIDDEN_STATUS: LeadStatus = "Already a Monex Client";
 
 // How long a rep keeps a claimed lead before it falls back to the public pool
 // if they haven't converted it to Client.
