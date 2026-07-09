@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Contact, LeadStatus, LeadWithScore } from "@/lib/types";
-import { LEAD_STATUSES } from "@/lib/types";
-import { OWNER_OPTIONS, ownerLabel } from "@/lib/team";
+import type { Contact, LeadPhone, LeadStatus, LeadWithScore } from "@/lib/types";
+import { LEAD_STATUSES, CLAIMING_STATUSES, HIDDEN_STATUS } from "@/lib/types";
+import { OWNER_OPTIONS, UNASSIGNED, ownerLabel } from "@/lib/team";
 import LeadContactsCell from "./LeadContactsCell";
 import StatusDropdown from "./StatusDropdown";
 import OwnerDropdown from "./OwnerDropdown";
@@ -13,8 +13,11 @@ import ScoreBar from "./ScoreBar";
 
 export type LeadWithContacts = LeadWithScore & {
   contacts: Contact[];
+  extraPhones: LeadPhone[];
   isExistingClient: boolean;
 };
+
+type Tab = "public" | "mine" | "all";
 
 type SortKey =
   | "company_name"
@@ -48,12 +51,16 @@ function todayStr(): string {
 export default function LeadBoard({
   leads,
   isAdmin = false,
+  currentUser,
 }: {
   leads: LeadWithContacts[];
   isAdmin?: boolean;
+  currentUser: string;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(leads);
+  const [tab, setTab] = useState<Tab>(isAdmin ? "all" : "public");
+  const [pickingId, setPickingId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -79,6 +86,16 @@ export default function LeadBoard({
     return rows.filter((r) => r.follow_up_date && r.follow_up_date <= today).length;
   }, [rows]);
 
+  const publicCount = useMemo(
+    () =>
+      rows.filter((r) => r.owner === UNASSIGNED && r.status !== HIDDEN_STATUS).length,
+    [rows]
+  );
+  const mineCount = useMemo(
+    () => rows.filter((r) => r.owner === currentUser).length,
+    [rows, currentUser]
+  );
+
   function handleDiscard(leadId: string) {
     setRows((prev) => prev.filter((l) => l.id !== leadId));
     setSelected((prev) => {
@@ -89,7 +106,47 @@ export default function LeadBoard({
   }
 
   function handleStatusChange(leadId: string, status: LeadStatus) {
-    setRows((prev) => prev.map((l) => (l.id === leadId ? { ...l, status } : l)));
+    // Mirror the server's claim rule so the row moves between Public / My Leads
+    // immediately (claiming statuses pull it private; others release it).
+    const claims = (CLAIMING_STATUSES as string[]).includes(status);
+    setRows((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? {
+              ...l,
+              status,
+              owner: claims ? currentUser : UNASSIGNED,
+              claimed_at: claims
+                ? l.owner === currentUser && l.claimed_at
+                  ? l.claimed_at
+                  : new Date().toISOString()
+                : null,
+            }
+          : l
+      )
+    );
+  }
+
+  async function handlePick(leadId: string) {
+    setPickingId(leadId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ claim: true }),
+      });
+      if (res.ok) {
+        setRows((prev) =>
+          prev.map((l) =>
+            l.id === leadId
+              ? { ...l, owner: currentUser, claimed_at: new Date().toISOString() }
+              : l
+          )
+        );
+      }
+    } finally {
+      setPickingId(null);
+    }
   }
 
   function handleOwnerChange(leadId: string, owner: string) {
@@ -177,6 +234,13 @@ export default function LeadBoard({
     const today = todayStr();
     const query = searchText.trim().toLowerCase();
     return rows.filter((lead) => {
+      // Tab scope: Public = unclaimed & not consultant-taken; My Leads = mine;
+      // All (admin) = everything.
+      if (tab === "public") {
+        if (lead.owner !== UNASSIGNED || lead.status === HIDDEN_STATUS) return false;
+      } else if (tab === "mine") {
+        if (lead.owner !== currentUser) return false;
+      }
       if (statusFilter !== "All" && lead.status !== statusFilter) return false;
       if (ownerFilter !== "All" && lead.owner !== ownerFilter) return false;
       if (dueOnly && !(lead.follow_up_date && lead.follow_up_date <= today)) return false;
@@ -186,7 +250,7 @@ export default function LeadBoard({
       }
       return true;
     });
-  }, [rows, searchText, statusFilter, ownerFilter, dueOnly]);
+  }, [rows, searchText, statusFilter, ownerFilter, dueOnly, tab, currentUser]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
@@ -245,6 +309,35 @@ export default function LeadBoard({
         <span className="text-[10px] text-neutral-500">
           {sorted.length} / {rows.length} LEADS
         </span>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-neutral-800 px-3 py-2">
+        {(
+          [
+            { key: "public" as Tab, label: "🌐 Public Pool", count: publicCount },
+            { key: "mine" as Tab, label: "🔒 My Leads", count: mineCount },
+            ...(isAdmin
+              ? [{ key: "all" as Tab, label: "All Leads", count: rows.length }]
+              : []),
+          ]
+        ).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`border px-3 py-1 text-[11px] font-semibold tracking-wider ${
+              tab === t.key
+                ? "border-emerald-600 bg-emerald-950/40 text-emerald-400"
+                : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+            }`}
+          >
+            {t.label} <span className="ml-1 text-neutral-500">{t.count}</span>
+          </button>
+        ))}
+        {tab === "public" && (
+          <span className="ml-2 text-[10px] text-neutral-600">
+            Up for grabs — click Pick to claim a lead (yours for 15 days).
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
@@ -490,12 +583,21 @@ export default function LeadBoard({
                       owner={lead.owner}
                       onOwnerChange={handleOwnerChange}
                     />
+                  ) : lead.owner === UNASSIGNED ? (
+                    <button
+                      onClick={() => handlePick(lead.id)}
+                      disabled={pickingId === lead.id}
+                      title="Claim this lead into your My Leads tab (yours for 15 days)."
+                      className="border border-emerald-700 bg-emerald-950/40 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-emerald-400 hover:bg-emerald-900/40 disabled:opacity-50"
+                    >
+                      {pickingId === lead.id ? "…" : "⊕ PICK"}
+                    </button>
                   ) : (
-                    <span className="text-neutral-400">{ownerLabel(lead.owner)}</span>
+                    <span className="text-emerald-400">{ownerLabel(lead.owner)}</span>
                   )}
                 </td>
-                <td className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300">
-                  {lead.phone ?? <span className="text-neutral-600">—</span>}
+                <td className="tabular px-3 py-1.5 text-amber-300">
+                  <PhoneList primary={lead.phone} extras={lead.extraPhones} />
                 </td>
                 <td className="px-3 py-1.5">
                   <LeadContactsCell
@@ -517,7 +619,7 @@ export default function LeadBoard({
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 13 : 12} className="px-3 py-6 text-center text-neutral-500">
+                <td colSpan={isAdmin ? 14 : 13} className="px-3 py-6 text-center text-neutral-500">
                   No leads match these filters.
                 </td>
               </tr>
@@ -525,6 +627,47 @@ export default function LeadBoard({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// Shows every distinct phone number for a lead. Apollo's number is the primary;
+// extras come from other sources (ZoomInfo, Seamless) and are tagged so a rep
+// knows where each came from when they differ.
+function PhoneList({
+  primary,
+  extras,
+}: {
+  primary: string | null;
+  extras?: LeadPhone[];
+}) {
+  const seen = new Set<string>();
+  const norm = (p: string) => p.replace(/[^\d]/g, "");
+  const items: { phone: string; source: string }[] = [];
+
+  if (primary) {
+    seen.add(norm(primary));
+    items.push({ phone: primary, source: "apollo" });
+  }
+  for (const e of extras ?? []) {
+    const key = norm(e.phone);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({ phone: e.phone, source: e.source });
+  }
+
+  if (items.length === 0) return <span className="text-neutral-600">—</span>;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {items.map((it) => (
+        <span key={it.phone} className="whitespace-nowrap">
+          {it.phone}
+          <span className="ml-1 text-[9px] uppercase tracking-wider text-neutral-600">
+            {it.source}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }

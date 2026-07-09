@@ -12,6 +12,7 @@ import {
   getApolloCreditsUsed,
   getContactsByLeadIds,
   getExistingClients,
+  getLeadPhonesByLeadIds,
   getLeads,
   getWeights,
 } from "@/lib/data";
@@ -29,10 +30,15 @@ async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: s
       getWeights(),
       getExistingClients(),
     ]);
-    const contactsByLead = await getContactsByLeadIds(leads.map((l) => l.id));
+    const leadIds = leads.map((l) => l.id);
+    const [contactsByLead, phonesByLead] = await Promise.all([
+      getContactsByLeadIds(leadIds),
+      getLeadPhonesByLeadIds(leadIds),
+    ]);
     const scored = withScores(leads, weights).map((lead) => ({
       ...lead,
       contacts: contactsByLead[lead.id] ?? [],
+      extraPhones: phonesByLead[lead.id] ?? [],
       isExistingClient: findMatchingClient(lead, existingClients) !== null,
     }));
 
@@ -68,7 +74,7 @@ async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: s
     return (
       <div className="flex flex-col gap-3">
         <KpiStrip kpis={kpis} />
-        <LeadBoard leads={scored} isAdmin={isAdmin} />
+        <LeadBoard leads={scored} isAdmin={isAdmin} currentUser={owner} />
       </div>
     );
   } catch (err) {

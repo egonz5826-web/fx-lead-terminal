@@ -4,7 +4,8 @@ export type LeadStatus =
   | "No Answer"
   | "No FX Need"
   | "Prospect"
-  | "Client";
+  | "Client"
+  | "Already Assigned to a Consultant";
 
 export const LEAD_STATUSES: LeadStatus[] = [
   "New",
@@ -13,7 +14,25 @@ export const LEAD_STATUSES: LeadStatus[] = [
   "No FX Need",
   "Prospect",
   "Client",
+  "Already Assigned to a Consultant",
 ];
+
+// Statuses that pull a lead into the picking rep's private "My Leads" tab.
+// (The Pick Lead button claims too, without changing status.) "New" and
+// "No FX Need" live in the public pool; "Already Assigned to a Consultant"
+// is hidden from all reps.
+export const CLAIMING_STATUSES: LeadStatus[] = [
+  "Contacted",
+  "No Answer",
+  "Prospect",
+  "Client",
+];
+
+export const HIDDEN_STATUS: LeadStatus = "Already Assigned to a Consultant";
+
+// How long a rep keeps a claimed lead before it falls back to the public pool
+// if they haven't converted it to Client.
+export const CLAIM_TTL_DAYS = 15;
 
 export interface Lead {
   id: string;
@@ -31,11 +50,22 @@ export interface Lead {
   latest_signal: string;
   status: LeadStatus;
   owner: string;
+  claimed_at: string | null;
   notes: string | null;
   follow_up_date: string | null;
   ai_score: number | null;
   ai_rationale: string | null;
   ai_scored_at: string | null;
+  created_at: string;
+}
+
+// A phone number for a lead, tagged with where it came from (Apollo, ZoomInfo,
+// Seamless.AI). We keep every distinct number so reps can try all of them.
+export interface LeadPhone {
+  id: string;
+  lead_id: string;
+  phone: string;
+  source: string;
   created_at: string;
 }
 

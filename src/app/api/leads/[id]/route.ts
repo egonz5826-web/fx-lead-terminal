@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   deleteLead,
+  pickLead,
   updateLeadNotes,
   updateLeadOwner,
   updateLeadStatus,
@@ -26,6 +27,10 @@ export async function PATCH(
       return NextResponse.json({ error: "This lead is claimed by another rep." }, { status: 403 });
     }
 
+    // "Pick Lead" — claim into the rep's private tab without changing status.
+    if (body.claim === true) {
+      await pickLead(id, user.username);
+    }
     if (typeof body.status === "string") {
       await updateLeadStatus(id, body.status, user.username);
     }

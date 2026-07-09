@@ -1,25 +1,29 @@
 import "server-only";
 import { getSupabaseServerClient } from "./supabase";
 import { DEFAULT_WEIGHTS } from "./scoring";
-import type { Contact, Lead, ScoringWeights } from "./types";
+import type { Contact, Lead, LeadPhone, ScoringWeights } from "./types";
 import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 import { enrichOrganization } from "./apollo";
 import { normalizeDomain } from "./matching";
 import { scoreLeadWithAI } from "./ai-scoring";
 import { UNASSIGNED } from "./team";
+import { CLAIMING_STATUSES as CLAIMING_LIST, HIDDEN_STATUS, CLAIM_TTL_DAYS } from "./types";
 
-// Statuses that "claim" a lead — moving a lead into one of these privately
-// assigns it to the rep who set it, so no one else can see or poach it.
-// Any other status releases the lead back into the shared pool.
-const CLAIMING_STATUSES = new Set(["Prospect", "Client"]);
+// Statuses that "claim" a lead into the picking rep's private tab.
+const CLAIMING_STATUSES = new Set<string>(CLAIMING_LIST);
 
-// Shared-pool visibility. Pass a rep's username to return the shared pool
-// (owner = Unassigned) PLUS anything that rep has claimed. Omit for the full
-// board (admin sees every lead, claimed or not).
+// Public/private visibility. Pass a rep's username to return everything they
+// may see: the public pool (owner = Unassigned, minus leads a consultant has
+// already taken) PLUS every lead that rep has personally claimed. Omit for the
+// admin view (every lead, including hidden and claimed-by-others).
 export async function getLeads(owner?: string): Promise<Lead[]> {
   const supabase = getSupabaseServerClient();
   let query = supabase.from("leads").select("*").order("company_name", { ascending: true });
-  if (owner) query = query.or(`owner.eq.${owner},owner.eq.${UNASSIGNED}`);
+  if (owner) {
+    query = query.or(
+      `owner.eq.${owner},and(owner.eq.${UNASSIGNED},status.neq.${HIDDEN_STATUS})`
+    );
+  }
   const { data, error } = await query;
 
   if (error) throw error;
@@ -337,14 +341,32 @@ export async function updateLeadStatus(
 ): Promise<void> {
   const supabase = getSupabaseServerClient();
 
-  // Claiming statuses (Prospect/Client) privately assign the lead to whoever
-  // set it. Any other status releases it back into the shared pool.
-  const owner = CLAIMING_STATUSES.has(status) ? actingUser : UNASSIGNED;
-
-  const { error } = await supabase
+  // Read the current claim so the 15-day clock is set once (at pick time) and
+  // not reset by later status changes.
+  const { data: currentLead } = await supabase
     .from("leads")
-    .update({ status, owner })
-    .eq("id", leadId);
+    .select("owner, claimed_at")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  const fields: Record<string, unknown> = { status };
+
+  if (CLAIMING_STATUSES.has(status)) {
+    // Claim it for the acting rep (private tab). Keep the original claim time
+    // if they already held it; otherwise start the clock now.
+    fields.owner = actingUser;
+    fields.claimed_at =
+      currentLead?.owner === actingUser && currentLead?.claimed_at
+        ? currentLead.claimed_at
+        : new Date().toISOString();
+  } else {
+    // New, No FX Need, or Already Assigned to a Consultant → out of anyone's
+    // private tab (public pool, or hidden if consultant-assigned).
+    fields.owner = UNASSIGNED;
+    fields.claimed_at = null;
+  }
+
+  const { error } = await supabase.from("leads").update(fields).eq("id", leadId);
   if (error) throw error;
 
   // Feed the signals panel with real team activity. Non-fatal on failure.
@@ -364,6 +386,99 @@ export async function updateLeadStatus(
   } catch {
     // ignore — the status update itself already succeeded
   }
+}
+
+// Rep claims a lead into their private tab without changing its status (e.g.
+// picking a brand-new lead to work). Starts the 15-day clock.
+export async function pickLead(leadId: string, username: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({ owner: username, claimed_at: new Date().toISOString() })
+    .eq("id", leadId);
+  if (error) throw error;
+
+  try {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("company_name")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (lead) {
+      await supabase.from("lead_events").insert({
+        lead_id: leadId,
+        event_text: `${lead.company_name} picked up`,
+        event_type: "claim",
+      });
+    }
+  } catch {
+    // non-fatal — the claim itself already succeeded
+  }
+}
+
+export interface ReleaseResult {
+  released: number;
+}
+
+// Auto-release: any claimed lead that hasn't become a Client within
+// CLAIM_TTL_DAYS of being picked drops back into the public pool as New.
+// Run daily by the cron route. Leads with no claimed_at (never on the clock)
+// and Client/consultant-assigned leads are left alone.
+export async function releaseStaleClaims(): Promise<ReleaseResult> {
+  const supabase = getSupabaseServerClient();
+  const cutoff = new Date(Date.now() - CLAIM_TTL_DAYS * 86_400_000).toISOString();
+
+  const { data: stale } = await supabase
+    .from("leads")
+    .select("id, company_name")
+    .neq("owner", UNASSIGNED)
+    .neq("status", "Client")
+    .neq("status", HIDDEN_STATUS)
+    .lt("claimed_at", cutoff);
+
+  const rows = stale ?? [];
+  if (rows.length === 0) return { released: 0 };
+
+  const ids = rows.map((r) => r.id);
+  const { error } = await supabase
+    .from("leads")
+    .update({ owner: UNASSIGNED, status: "New", claimed_at: null })
+    .in("id", ids);
+  if (error) throw error;
+
+  try {
+    await supabase.from("lead_events").insert(
+      rows.map((r) => ({
+        lead_id: r.id,
+        event_text: `${r.company_name} returned to the public pool (15-day timeout)`,
+        event_type: "auto_release",
+      }))
+    );
+  } catch {
+    // non-fatal — the release already succeeded
+  }
+
+  return { released: rows.length };
+}
+
+// Extra phone numbers per lead from non-Apollo sources (ZoomInfo, Seamless).
+// Apollo's number stays on lead.phone; these are additional/differing numbers.
+export async function getLeadPhonesByLeadIds(
+  leadIds: string[]
+): Promise<Record<string, LeadPhone[]>> {
+  if (leadIds.length === 0) return {};
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("lead_phones")
+    .select("*")
+    .in("lead_id", leadIds);
+  if (error) return {};
+
+  const grouped: Record<string, LeadPhone[]> = {};
+  for (const p of data ?? []) {
+    (grouped[p.lead_id] ??= []).push(p);
+  }
+  return grouped;
 }
 
 export async function updateLeadNotes(
