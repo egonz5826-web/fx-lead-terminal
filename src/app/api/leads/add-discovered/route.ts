@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createLeadsFromDiscovery } from "@/lib/data";
 import type { OrganizationSearchResult } from "@/lib/apollo";
 import { getSessionUser } from "@/lib/users";
+import { UNASSIGNED } from "@/lib/team";
 
 export async function POST(request: Request) {
   try {
@@ -20,10 +21,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Discovered leads belong to the person who found them. Only an admin may
-    // assign them to someone else.
+    // Discovered leads go into the shared pool so everyone can see them; a rep
+    // claims one later by marking it Prospect. An admin may still assign a
+    // batch directly to a specific rep.
     const assignedOwner =
-      user.role === "admin" && typeof owner === "string" && owner ? owner : user.username;
+      user.role === "admin" && typeof owner === "string" && owner ? owner : UNASSIGNED;
 
     const result = await createLeadsFromDiscovery(companies as OrganizationSearchResult[], {
       corridor,

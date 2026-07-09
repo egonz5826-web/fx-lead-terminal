@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Contact, LeadStatus, LeadWithScore } from "@/lib/types";
 import { LEAD_STATUSES } from "@/lib/types";
 import { OWNER_OPTIONS, ownerLabel } from "@/lib/team";
@@ -22,6 +23,7 @@ type SortKey =
   | "est_annual_teu"
   | "currency_exposure"
   | "fx_opportunity_score"
+  | "ai_score"
   | "latest_signal"
   | "status"
   | "owner";
@@ -33,6 +35,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "est_annual_teu", label: "Est. Annual TEU" },
   { key: "currency_exposure", label: "Currency Exposure" },
   { key: "fx_opportunity_score", label: "FX Score" },
+  { key: "ai_score", label: "AI Analyst" },
   { key: "latest_signal", label: "Latest Signal" },
   { key: "status", label: "Status" },
   { key: "owner", label: "Owner" },
@@ -49,9 +52,13 @@ export default function LeadBoard({
   leads: LeadWithContacts[];
   isAdmin?: boolean;
 }) {
+  const router = useRouter();
   const [rows, setRows] = useState(leads);
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
 
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "All">("All");
@@ -125,6 +132,47 @@ export default function LeadBoard({
     }
   }
 
+  // Walk the whole board in batches, scoring each lead with the AI analyst,
+  // then refresh so the new scores render. Admin only.
+  async function handleRunAiAnalyst() {
+    if (aiRunning) return;
+    setAiRunning(true);
+    setAiStatus("Starting AI analyst…");
+    try {
+      let offset = 0;
+      let totalUpdated = 0;
+      let totalFailed = 0;
+      // Safety cap so a bug can't loop forever.
+      for (let batch = 0; batch < 200; batch++) {
+        const res = await fetch("/api/leads/ai-score", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 20, offset }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setAiStatus(`Stopped: ${data.error ?? "AI scoring failed."}`);
+          return;
+        }
+        totalUpdated += data.updated ?? 0;
+        totalFailed += data.failed ?? 0;
+        offset += data.processed ?? 0;
+        setAiStatus(`Scored ${totalUpdated} leads… (${data.remaining} left)`);
+        if (!data.remaining || data.processed === 0) break;
+      }
+      setAiStatus(
+        `Done — scored ${totalUpdated} lead${totalUpdated === 1 ? "" : "s"}${
+          totalFailed ? `, ${totalFailed} failed` : ""
+        }. Refreshing…`
+      );
+      router.refresh();
+    } catch {
+      setAiStatus("Couldn't reach the server. Try again.");
+    } finally {
+      setAiRunning(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     const today = todayStr();
     const query = searchText.trim().toLowerCase();
@@ -145,6 +193,13 @@ export default function LeadBoard({
     copy.sort((a, b) => {
       const av = a[sortKey as keyof LeadWithScore];
       const bv = b[sortKey as keyof LeadWithScore];
+      // Unscored leads (null, e.g. ai_score before a run) always sink to the
+      // bottom regardless of sort direction.
+      const aNull = av === null || av === undefined;
+      const bNull = bv === null || bv === undefined;
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
       let cmp = 0;
       if (typeof av === "number" && typeof bv === "number") {
         cmp = av - bv;
@@ -248,6 +303,21 @@ export default function LeadBoard({
           >
             clear filters
           </button>
+        )}
+        {isAdmin && (
+          <div className="ml-auto flex items-center gap-2">
+            {aiStatus && (
+              <span className="text-[11px] text-neutral-400">{aiStatus}</span>
+            )}
+            <button
+              onClick={handleRunAiAnalyst}
+              disabled={aiRunning}
+              title="Score every lead with the AI analyst (Claude Haiku). Pennies per lead, no Apollo credits."
+              className="border border-amber-700 bg-amber-950/30 px-3 py-1 text-[11px] font-semibold tracking-wider text-amber-400 hover:bg-amber-900/40 disabled:opacity-50"
+            >
+              {aiRunning ? "SCORING…" : "⚡ RUN AI ANALYST"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -381,6 +451,25 @@ export default function LeadBoard({
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5">
                   <ScoreBar score={lead.fx_opportunity_score} />
+                </td>
+                <td className="max-w-[260px] px-3 py-1.5">
+                  {lead.ai_score != null ? (
+                    <div className="flex items-start gap-2">
+                      <span className="tabular shrink-0 border border-amber-800 bg-amber-950/40 px-1.5 py-0.5 text-[11px] font-semibold text-amber-300">
+                        {lead.ai_score}
+                      </span>
+                      {lead.ai_rationale && (
+                        <span
+                          className="truncate text-[11px] text-neutral-400"
+                          title={lead.ai_rationale}
+                        >
+                          {lead.ai_rationale}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-neutral-600">—</span>
+                  )}
                 </td>
                 <td className="max-w-[220px] truncate px-3 py-1.5 text-neutral-400">
                   {lead.latest_signal}

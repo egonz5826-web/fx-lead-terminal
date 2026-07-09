@@ -4,7 +4,7 @@ import {
   updateLeadNotes,
   updateLeadOwner,
   updateLeadStatus,
-  userOwnsLead,
+  userCanActOnLead,
 } from "@/lib/data";
 import { getSessionUser } from "@/lib/users";
 
@@ -20,13 +20,14 @@ export async function PATCH(
     const body = await request.json();
     const isAdmin = user.role === "admin";
 
-    // Reps may only modify their own leads.
-    if (!isAdmin && !(await userOwnsLead(id, user.username))) {
-      return NextResponse.json({ error: "Not your lead." }, { status: 403 });
+    // Reps may act on shared (unclaimed) leads or ones they've claimed — but
+    // never on a lead another rep has claimed (Prospect/Client).
+    if (!isAdmin && !(await userCanActOnLead(id, user.username))) {
+      return NextResponse.json({ error: "This lead is claimed by another rep." }, { status: 403 });
     }
 
     if (typeof body.status === "string") {
-      await updateLeadStatus(id, body.status);
+      await updateLeadStatus(id, body.status, user.username);
     }
     // Reassigning ownership is admin-only.
     if (typeof body.owner === "string") {
@@ -58,8 +59,8 @@ export async function DELETE(
     if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
     const { id } = await context.params;
-    if (user.role !== "admin" && !(await userOwnsLead(id, user.username))) {
-      return NextResponse.json({ error: "Not your lead." }, { status: 403 });
+    if (user.role !== "admin" && !(await userCanActOnLead(id, user.username))) {
+      return NextResponse.json({ error: "This lead is claimed by another rep." }, { status: 403 });
     }
 
     await deleteLead(id);

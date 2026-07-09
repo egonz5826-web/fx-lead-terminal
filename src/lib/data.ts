@@ -5,12 +5,21 @@ import type { Contact, Lead, ScoringWeights } from "./types";
 import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 import { enrichOrganization } from "./apollo";
 import { normalizeDomain } from "./matching";
+import { scoreLeadWithAI } from "./ai-scoring";
+import { UNASSIGNED } from "./team";
 
-// Pass an owner to restrict to that rep's leads; omit for the full board (admin).
+// Statuses that "claim" a lead — moving a lead into one of these privately
+// assigns it to the rep who set it, so no one else can see or poach it.
+// Any other status releases the lead back into the shared pool.
+const CLAIMING_STATUSES = new Set(["Prospect", "Client"]);
+
+// Shared-pool visibility. Pass a rep's username to return the shared pool
+// (owner = Unassigned) PLUS anything that rep has claimed. Omit for the full
+// board (admin sees every lead, claimed or not).
 export async function getLeads(owner?: string): Promise<Lead[]> {
   const supabase = getSupabaseServerClient();
   let query = supabase.from("leads").select("*").order("company_name", { ascending: true });
-  if (owner) query = query.eq("owner", owner);
+  if (owner) query = query.or(`owner.eq.${owner},owner.eq.${UNASSIGNED}`);
   const { data, error } = await query;
 
   if (error) throw error;
@@ -26,6 +35,19 @@ export async function userOwnsLead(leadId: string, owner: string): Promise<boole
     .eq("id", leadId)
     .maybeSingle();
   return data?.owner === owner;
+}
+
+// A rep may act on a lead if it's unclaimed (in the shared pool) or already
+// theirs. A lead claimed by another rep is off-limits (they can't even see it).
+export async function userCanActOnLead(leadId: string, username: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase
+    .from("leads")
+    .select("owner")
+    .eq("id", leadId)
+    .maybeSingle();
+  const current = data?.owner ?? UNASSIGNED;
+  return current === UNASSIGNED || current === username;
 }
 
 export interface DiscoveryContext {
@@ -238,9 +260,91 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
   };
 }
 
-export async function updateLeadStatus(leadId: string, status: string): Promise<void> {
+export interface AiScoreBatchResult {
+  processed: number;
+  updated: number;
+  failed: number;
+  remaining: number;
+}
+
+// Runs the AI analyst over a batch of leads: one cheap Claude Haiku call each,
+// writing an ai_score + ai_rationale. Uses ZERO Apollo credits (reasons over
+// data already on the row). Call repeatedly with increasing offset until
+// `remaining` is 0. Admin only — it touches the whole board.
+export async function aiScoreLeads(limit = 25, offset = 0): Promise<AiScoreBatchResult> {
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase.from("leads").update({ status }).eq("id", leadId);
+
+  const { data: leads, error, count } = await supabase
+    .from("leads")
+    .select(
+      "id, company_name, city, state, import_corridors, currency_exposure, volume_score, growth_score, corridor_score, est_annual_teu, latest_signal",
+      { count: "exact" }
+    )
+    .order("company_name", { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+
+  const leadIds = (leads ?? []).map((l) => l.id);
+  const contactsByLead = await getContactsByLeadIds(leadIds);
+
+  let updated = 0;
+  let failed = 0;
+
+  for (const lead of leads ?? []) {
+    try {
+      const result = await scoreLeadWithAI({
+        company_name: lead.company_name,
+        city: lead.city,
+        state: lead.state,
+        import_corridors: lead.import_corridors,
+        currency_exposure: lead.currency_exposure,
+        volume_score: lead.volume_score,
+        growth_score: lead.growth_score,
+        corridor_score: lead.corridor_score,
+        est_annual_teu: lead.est_annual_teu,
+        latest_signal: lead.latest_signal,
+        contacts_count: contactsByLead[lead.id]?.length ?? 0,
+      });
+
+      const { error: updateError } = await supabase
+        .from("leads")
+        .update({
+          ai_score: result.score,
+          ai_rationale: result.rationale,
+          ai_scored_at: new Date().toISOString(),
+        })
+        .eq("id", lead.id);
+      if (updateError) failed += 1;
+      else updated += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  const total = count ?? 0;
+  return {
+    processed: leads?.length ?? 0,
+    updated,
+    failed,
+    remaining: Math.max(0, total - (offset + (leads?.length ?? 0))),
+  };
+}
+
+export async function updateLeadStatus(
+  leadId: string,
+  status: string,
+  actingUser: string
+): Promise<void> {
+  const supabase = getSupabaseServerClient();
+
+  // Claiming statuses (Prospect/Client) privately assign the lead to whoever
+  // set it. Any other status releases it back into the shared pool.
+  const owner = CLAIMING_STATUSES.has(status) ? actingUser : UNASSIGNED;
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ status, owner })
+    .eq("id", leadId);
   if (error) throw error;
 
   // Feed the signals panel with real team activity. Non-fatal on failure.

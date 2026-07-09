@@ -33,6 +33,9 @@ export interface Lead {
   owner: string;
   notes: string | null;
   follow_up_date: string | null;
+  ai_score: number | null;
+  ai_rationale: string | null;
+  ai_scored_at: string | null;
   created_at: string;
 }
 
