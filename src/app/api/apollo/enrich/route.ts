@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getLeadById, saveEnrichedContact, incrementApolloCreditsUsed } from "@/lib/data";
+import {
+  getLeadById,
+  saveEnrichedContact,
+  incrementApolloCreditsUsed,
+  userCanActOnLead,
+} from "@/lib/data";
 import { enrichContact, ApolloError } from "@/lib/apollo";
 import { getSessionUser } from "@/lib/users";
 
@@ -20,8 +25,11 @@ export async function POST(request: Request) {
     if (!lead) {
       return NextResponse.json({ error: "Lead not found." }, { status: 404 });
     }
-    if (user.role !== "admin" && lead.owner !== user.username) {
-      return NextResponse.json({ error: "Not your lead." }, { status: 403 });
+    if (user.role !== "admin" && !(await userCanActOnLead(leadId, user.username))) {
+      return NextResponse.json(
+        { error: "This lead is claimed by another rep." },
+        { status: 403 }
+      );
     }
 
     const enriched = await enrichContact(apolloPersonId);
