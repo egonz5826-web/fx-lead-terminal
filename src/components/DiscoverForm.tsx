@@ -79,18 +79,28 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
     }
   }
 
-  function applySuggestion(s: KeywordSuggestion) {
+  function keywordParts(kw: string): string[] {
+    return kw
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  function hasKeyword(term: string): boolean {
+    return keywordParts(keywords).some((p) => p.toLowerCase() === term.toLowerCase());
+  }
+
+  // Click a chip to add its term (and set the currency); click again to remove.
+  function toggleSuggestion(s: KeywordSuggestion) {
+    const present = hasKeyword(s.term);
     setKeywords((prev) => {
-      const parts = prev
-        .split(",")
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (!parts.some((p) => p.toLowerCase() === s.term.toLowerCase())) {
-        parts.push(s.term);
-      }
+      const parts = keywordParts(prev);
+      const idx = parts.findIndex((p) => p.toLowerCase() === s.term.toLowerCase());
+      if (idx >= 0) parts.splice(idx, 1);
+      else parts.push(s.term);
       return parts.join(", ");
     });
-    if (s.currency) setCurrencyExposure(s.currency);
+    if (!present && s.currency) setCurrencyExposure(s.currency);
   }
 
   async function runSearch(targetPage: number) {
@@ -241,22 +251,40 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
             <span className="ml-2 text-[11px] text-neutral-500">{suggestError}</span>
           )}
           {suggestions.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {suggestions.map((s) => (
-                <button
-                  key={s.term}
-                  type="button"
-                  onClick={() => applySuggestion(s)}
-                  title={`Add "${s.term}" and set currency to ${s.currency}`}
-                  className="group border border-neutral-700 bg-black px-2 py-0.5 text-[11px] text-emerald-400 hover:border-emerald-600 hover:bg-emerald-950/30"
-                >
-                  + {s.term}
-                  <span className="ml-1 text-[9px] uppercase tracking-wider text-neutral-500">
-                    {s.currency}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {suggestions.map((s) => {
+                  const added = hasKeyword(s.term);
+                  return (
+                    <button
+                      key={s.term}
+                      type="button"
+                      onClick={() => toggleSuggestion(s)}
+                      title={
+                        added
+                          ? `Remove "${s.term}"`
+                          : `Add "${s.term}" and set currency to ${s.currency}`
+                      }
+                      className={`border px-2 py-0.5 text-[11px] ${
+                        added
+                          ? "border-emerald-600 bg-emerald-900/40 text-emerald-300"
+                          : "border-neutral-700 bg-black text-emerald-400 hover:border-emerald-600 hover:bg-emerald-950/30"
+                      }`}
+                    >
+                      {added ? "✓ " : "+ "}
+                      {s.term}
+                      <span className="ml-1 text-[9px] uppercase tracking-wider text-neutral-500">
+                        {s.currency}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[10px] text-neutral-600">
+                Click to add a niche to your search (adds the term above and sets the currency).
+                Click again to remove.
+              </p>
+            </>
           )}
         </div>
 

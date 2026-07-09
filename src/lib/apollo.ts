@@ -274,6 +274,104 @@ export async function discoverCompanies(
   }));
 }
 
+// Look up a single specific company by name (targeted, vs. the broad Discover
+// search). Costs Apollo search credits like any org search.
+export async function searchCompanyByName(
+  name: string
+): Promise<OrganizationSearchResult[]> {
+  const apiKey = getApiKey();
+
+  const query = new URLSearchParams();
+  query.append("q_organization_name", name.trim());
+  query.append("per_page", "5");
+  query.append("page", "1");
+
+  const res = await fetch(
+    `https://api.apollo.io/api/v1/mixed_companies/search?${query.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+        "x-api-key": apiKey,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) throw friendlyErrorFromStatus(res.status);
+
+  const data = await res.json();
+  const orgs: ApolloOrganizationResult[] = data.organizations ?? data.accounts ?? [];
+
+  return orgs.map((o) => ({
+    apollo_org_id: o.id,
+    name: o.name ?? "Unknown",
+    website: o.primary_domain ?? o.website_url ?? null,
+    phone: o.sanitized_phone ?? null,
+    revenue_printed: o.organization_revenue_printed ?? null,
+    growth_12mo: o.organization_headcount_twelve_month_growth ?? null,
+    intent_strength: o.intent_strength ?? null,
+  }));
+}
+
+export interface PeopleLookupResult {
+  apollo_person_id: string;
+  name: string;
+  title: string | null;
+  organization_name: string | null;
+  linkedin_url: string | null;
+  city: string | null;
+  state: string | null;
+}
+
+// Free people search by name (+ optional company). Returns matches with title,
+// company, and LinkedIn. Revealing email/phone is a separate paid enrichment.
+export async function searchPeopleByName(params: {
+  name: string;
+  company?: string;
+  title?: string;
+}): Promise<PeopleLookupResult[]> {
+  const apiKey = getApiKey();
+
+  const query = new URLSearchParams();
+  if (params.name.trim()) query.append("q_keywords", params.name.trim());
+  if (params.company?.trim()) query.append("q_organization_name", params.company.trim());
+  if (params.title?.trim()) query.append("person_titles[]", params.title.trim());
+  query.append("per_page", "10");
+
+  const res = await fetch(
+    `https://api.apollo.io/api/v1/mixed_people/api_search?${query.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+        "x-api-key": apiKey,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) throw friendlyErrorFromStatus(res.status);
+
+  const data = await res.json();
+  const people: (ApolloPersonResult & {
+    city?: string | null;
+    state?: string | null;
+  })[] = data.people ?? [];
+
+  return people.slice(0, 10).map((p) => ({
+    apollo_person_id: p.id,
+    name: p.name ?? [p.first_name, p.last_name].filter(Boolean).join(" ") ?? "Unknown",
+    title: p.title ?? null,
+    organization_name: p.organization?.name ?? null,
+    linkedin_url: p.linkedin_url ?? null,
+    city: p.city ?? null,
+    state: p.state ?? null,
+  }));
+}
+
 interface ApolloOrganizationEnrichResponse {
   organization: {
     id: string;

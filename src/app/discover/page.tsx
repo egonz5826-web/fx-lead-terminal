@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import DiscoverForm from "@/components/DiscoverForm";
+import DiscoverLookups from "@/components/DiscoverLookups";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
 import TerminalFooter from "@/components/TerminalFooter";
@@ -34,8 +35,9 @@ export default async function DiscoverPage() {
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-3xl flex-1 p-6">
+        <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 p-6">
           <DiscoverForm isAdmin={user.role === "admin"} />
+          <DiscoverLookups />
         </main>
 
         <TerminalFooter />
