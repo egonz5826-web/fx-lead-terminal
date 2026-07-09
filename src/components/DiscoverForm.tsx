@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { OrganizationSearchResult } from "@/lib/apollo";
+import type { KeywordSuggestion } from "@/lib/ai-suggest";
 import { OWNER_OPTIONS } from "@/lib/team";
 import { useApolloUsage } from "./ApolloUsageContext";
 
@@ -41,6 +42,10 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
   const [currencyExposure, setCurrencyExposure] = useState("USD/MXN");
   const [owner, setOwner] = useState(OWNER_OPTIONS[0].value);
 
+  const [suggestions, setSuggestions] = useState<KeywordSuggestion[]>([]);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
   const [results, setResults] = useState<OrganizationSearchResult[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [searching, setSearching] = useState(false);
@@ -48,6 +53,45 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [addedMessage, setAddedMessage] = useState<string | null>(null);
+
+  async function handleSuggest() {
+    setSuggestError(null);
+    setLoadingSuggest(true);
+    try {
+      const res = await fetch("/api/discover/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSuggestError(data.error ?? "Couldn't get suggestions.");
+        return;
+      }
+      setSuggestions(data.suggestions ?? []);
+      if ((data.suggestions ?? []).length === 0) {
+        setSuggestError("No suggestions — try a broader keyword.");
+      }
+    } catch {
+      setSuggestError("Couldn't reach the AI. Try again.");
+    } finally {
+      setLoadingSuggest(false);
+    }
+  }
+
+  function applySuggestion(s: KeywordSuggestion) {
+    setKeywords((prev) => {
+      const parts = prev
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (!parts.some((p) => p.toLowerCase() === s.term.toLowerCase())) {
+        parts.push(s.term);
+      }
+      return parts.join(", ");
+    });
+    if (s.currency) setCurrencyExposure(s.currency);
+  }
 
   async function runSearch(targetPage: number) {
     setSearching(true);
@@ -135,7 +179,7 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
       const res = await fetch("/api/leads/add-discovered", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companies: chosen, corridor, currencyExposure, owner }),
+        body: JSON.stringify({ companies: chosen, corridor, currencyExposure, owner, keywords }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -181,6 +225,39 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
           />
           <Field label="Min Employees" value={minEmployees} onChange={setMinEmployees} type="number" />
           <Field label="Max Employees" value={maxEmployees} onChange={setMaxEmployees} type="number" />
+        </div>
+
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={handleSuggest}
+            disabled={loadingSuggest || keywords.trim().length < 2}
+            title="AI suggests related niches with cross-border payment exposure (pennies, no Apollo credits)."
+            className="border border-amber-700 bg-amber-950/30 px-3 py-1 text-[11px] font-semibold tracking-wider text-amber-400 hover:bg-amber-900/40 disabled:opacity-50"
+          >
+            {loadingSuggest ? "THINKING…" : "✨ AI SUGGEST RELATED NICHES"}
+          </button>
+          {suggestError && (
+            <span className="ml-2 text-[11px] text-neutral-500">{suggestError}</span>
+          )}
+          {suggestions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {suggestions.map((s) => (
+                <button
+                  key={s.term}
+                  type="button"
+                  onClick={() => applySuggestion(s)}
+                  title={`Add "${s.term}" and set currency to ${s.currency}`}
+                  className="group border border-neutral-700 bg-black px-2 py-0.5 text-[11px] text-emerald-400 hover:border-emerald-600 hover:bg-emerald-950/30"
+                >
+                  + {s.term}
+                  <span className="ml-1 text-[9px] uppercase tracking-wider text-neutral-500">
+                    {s.currency}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <h2 className="mb-3 mt-5 text-xs font-semibold tracking-widest text-emerald-500">

@@ -29,7 +29,8 @@ type SortKey =
   | "ai_score"
   | "latest_signal"
   | "status"
-  | "owner";
+  | "owner"
+  | "created_at";
 
 const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "company_name", label: "Company" },
@@ -70,7 +71,10 @@ export default function LeadBoard({
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "All">("All");
   const [ownerFilter, setOwnerFilter] = useState<string>("All");
+  const [currencyFilter, setCurrencyFilter] = useState("All");
+  const [industryFilter, setIndustryFilter] = useState("All");
   const [dueOnly, setDueOnly] = useState(false);
+  const [discoveriesOnly, setDiscoveriesOnly] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOwner, setBulkOwner] = useState(OWNER_OPTIONS[0].value);
@@ -78,6 +82,17 @@ export default function LeadBoard({
 
   const owners = useMemo(
     () => Array.from(new Set(rows.map((r) => r.owner).filter(Boolean))).sort(),
+    [rows]
+  );
+  const currencies = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.currency_exposure).filter(Boolean))).sort(),
+    [rows]
+  );
+  const industries = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((r) => r.industry).filter((x): x is string => Boolean(x)))
+      ).sort(),
     [rows]
   );
 
@@ -243,14 +258,29 @@ export default function LeadBoard({
       }
       if (statusFilter !== "All" && lead.status !== statusFilter) return false;
       if (ownerFilter !== "All" && lead.owner !== ownerFilter) return false;
+      if (currencyFilter !== "All" && lead.currency_exposure !== currencyFilter) return false;
+      if (industryFilter !== "All" && (lead.industry ?? "") !== industryFilter) return false;
+      if (discoveriesOnly && lead.discovered_by !== currentUser) return false;
       if (dueOnly && !(lead.follow_up_date && lead.follow_up_date <= today)) return false;
       if (query) {
-        const haystack = `${lead.company_name} ${lead.city} ${lead.state} ${lead.owner}`.toLowerCase();
+        const haystack =
+          `${lead.company_name} ${lead.city} ${lead.state} ${lead.owner} ${lead.industry ?? ""} ${lead.search_keywords ?? ""}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
     });
-  }, [rows, searchText, statusFilter, ownerFilter, dueOnly, tab, currentUser]);
+  }, [
+    rows,
+    searchText,
+    statusFilter,
+    ownerFilter,
+    currencyFilter,
+    industryFilter,
+    discoveriesOnly,
+    dueOnly,
+    tab,
+    currentUser,
+  ]);
 
   const sorted = useMemo(() => {
     const copy = [...filtered];
@@ -345,7 +375,7 @@ export default function LeadBoard({
           type="text"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          placeholder="Search company, city, owner…"
+          placeholder="Search company, city, industry, keywords…"
           className="w-52 border border-neutral-700 bg-black px-2 py-1 text-[11px] text-emerald-400 outline-none focus:border-emerald-600"
         />
         <select
@@ -374,6 +404,57 @@ export default function LeadBoard({
             ))}
           </select>
         )}
+        <select
+          value={currencyFilter}
+          onChange={(e) => setCurrencyFilter(e.target.value)}
+          className="border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+        >
+          <option value="All">All currencies</option>
+          {currencies.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        {industries.length > 0 && (
+          <select
+            value={industryFilter}
+            onChange={(e) => setIndustryFilter(e.target.value)}
+            className="max-w-[160px] border border-neutral-700 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-600"
+          >
+            <option value="All">All industries</option>
+            {industries.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          onClick={() => setDiscoveriesOnly((d) => !d)}
+          title="Show only leads you discovered via the Discover tab."
+          className={`border px-2 py-1 text-[11px] font-semibold ${
+            discoveriesOnly
+              ? "border-emerald-600 bg-emerald-950/40 text-emerald-400"
+              : "border-neutral-700 text-neutral-300 hover:border-emerald-700 hover:text-emerald-400"
+          }`}
+        >
+          🔍 My discoveries
+        </button>
+        <button
+          onClick={() => {
+            setSortKey("created_at");
+            setSortDir("desc");
+          }}
+          title="Sort newest-added first."
+          className={`border px-2 py-1 text-[11px] font-semibold ${
+            sortKey === "created_at"
+              ? "border-emerald-600 bg-emerald-950/40 text-emerald-400"
+              : "border-neutral-700 text-neutral-300 hover:border-emerald-700 hover:text-emerald-400"
+          }`}
+        >
+          🆕 Newest
+        </button>
         <button
           onClick={() => setDueOnly((d) => !d)}
           className={`border px-2 py-1 text-[11px] font-semibold ${
@@ -384,12 +465,21 @@ export default function LeadBoard({
         >
           {dueCount} follow-up{dueCount === 1 ? "" : "s"} due
         </button>
-        {(searchText || statusFilter !== "All" || ownerFilter !== "All" || dueOnly) && (
+        {(searchText ||
+          statusFilter !== "All" ||
+          ownerFilter !== "All" ||
+          currencyFilter !== "All" ||
+          industryFilter !== "All" ||
+          discoveriesOnly ||
+          dueOnly) && (
           <button
             onClick={() => {
               setSearchText("");
               setStatusFilter("All");
               setOwnerFilter("All");
+              setCurrencyFilter("All");
+              setIndustryFilter("All");
+              setDiscoveriesOnly(false);
               setDueOnly(false);
             }}
             className="text-[11px] text-neutral-500 hover:text-neutral-300"

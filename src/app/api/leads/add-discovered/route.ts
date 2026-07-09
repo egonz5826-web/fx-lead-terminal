@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-    const { companies, corridor, currencyExposure, owner } = await request.json();
+    const { companies, corridor, currencyExposure, owner, keywords } = await request.json();
 
     if (!Array.isArray(companies) || companies.length === 0) {
       return NextResponse.json({ error: "No companies selected." }, { status: 400 });
@@ -31,6 +31,8 @@ export async function POST(request: Request) {
       corridor,
       currencyExposure,
       owner: assignedOwner,
+      discoveredBy: user.username,
+      keywords: typeof keywords === "string" ? keywords : "",
     });
 
     return NextResponse.json(result);

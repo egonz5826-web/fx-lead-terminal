@@ -58,6 +58,8 @@ export interface DiscoveryContext {
   corridor: string;
   currencyExposure: string;
   owner: string;
+  discoveredBy: string;
+  keywords: string;
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -169,6 +171,9 @@ export async function createLeadsFromDiscovery(
         volume_score: volumeScore(revenue, employees),
         corridor_score: corridorScore(context.currencyExposure),
         growth_score: growthScore(growth),
+        industry: details?.industry ?? null,
+        discovered_by: context.discoveredBy || null,
+        search_keywords: context.keywords || null,
         latest_signal: signalParts.length
           ? `Apollo: ${signalParts.join(" · ")}`
           : "Discovered via Apollo prospecting — scores are starting estimates",

@@ -51,6 +51,9 @@ export interface Lead {
   status: LeadStatus;
   owner: string;
   claimed_at: string | null;
+  industry: string | null;
+  discovered_by: string | null;
+  search_keywords: string | null;
   notes: string | null;
   follow_up_date: string | null;
   ai_score: number | null;
