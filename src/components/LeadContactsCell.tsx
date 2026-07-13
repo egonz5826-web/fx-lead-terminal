@@ -59,6 +59,36 @@ export default function LeadContactsCell({
     }
   }
 
+  // Apollo reveals phone numbers asynchronously (via webhook). Poll for it so
+  // it appears on its own — no manual page refresh. Gives up after ~3 minutes.
+  async function pollForPhone(apolloPersonId: string) {
+    for (let i = 0; i < 36; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const res = await fetch(
+          `/api/apollo/contact-phone?apolloPersonId=${encodeURIComponent(apolloPersonId)}`
+        );
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.phone) {
+          setContacts((prev) =>
+            prev.map((c) =>
+              c.apollo_person_id === apolloPersonId ? { ...c, phone: data.phone } : c
+            )
+          );
+          setPendingPhoneIds((prev) => {
+            const next = new Set(prev);
+            next.delete(apolloPersonId);
+            return next;
+          });
+          return;
+        }
+      } catch {
+        // keep polling
+      }
+    }
+  }
+
   async function handleEnrich(match: ApolloSearchMatch) {
     const confirmed = window.confirm(
       `Enriching ${match.name} will use 1 Apollo credit to reveal a verified email and phone number. Continue?`
@@ -80,8 +110,9 @@ export default function LeadContactsCell({
       }
       setContacts((prev) => [...prev, data.contact]);
       setCreditsUsed(data.creditsUsed);
-      if (data.phonePending) {
+      if (data.phonePending && data.contact.apollo_person_id) {
         setPendingPhoneIds((prev) => new Set(prev).add(data.contact.apollo_person_id));
+        pollForPhone(data.contact.apollo_person_id);
       }
     } catch {
       setError("Couldn't reach Apollo. Check your connection and try again.");

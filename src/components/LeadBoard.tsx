@@ -671,10 +671,7 @@ export default function LeadBoard({
                         {lead.ai_score}
                       </span>
                       {lead.ai_rationale && (
-                        <span
-                          className="truncate text-[11px] text-neutral-400"
-                          title={lead.ai_rationale}
-                        >
+                        <span className="whitespace-normal break-words text-[11px] leading-snug text-neutral-400">
                           {lead.ai_rationale}
                         </span>
                       )}
@@ -683,7 +680,7 @@ export default function LeadBoard({
                     <span className="text-neutral-600">—</span>
                   )}
                 </td>
-                <td className="max-w-[220px] truncate px-3 py-1.5 text-neutral-400">
+                <td className="max-w-[220px] whitespace-normal break-words px-3 py-1.5 align-top text-neutral-400">
                   {lead.latest_signal}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5">

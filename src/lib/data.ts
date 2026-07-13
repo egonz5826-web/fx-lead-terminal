@@ -633,6 +633,20 @@ export async function updateContactPhoneByApolloId(
   if (error) throw error;
 }
 
+// Current phone for a contact, looked up by Apollo person id. Used by the UI
+// to poll for a phone number that Apollo reveals asynchronously via webhook.
+export async function getContactPhoneByApolloId(
+  apolloPersonId: string
+): Promise<string | null> {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase
+    .from("contacts")
+    .select("phone")
+    .eq("apollo_person_id", apolloPersonId)
+    .maybeSingle();
+  return data?.phone ?? null;
+}
+
 export async function getContactsByLeadIds(
   leadIds: string[]
 ): Promise<Record<string, Contact[]>> {
