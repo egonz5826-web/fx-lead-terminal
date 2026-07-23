@@ -384,7 +384,7 @@ export async function updateLeadStatus(
     if (lead) {
       await supabase.from("lead_events").insert({
         lead_id: leadId,
-        event_text: `${lead.company_name} → ${status}`,
+        event_text: `${lead.company_name} → ${status} by ${actingUser}`,
         event_type: "status_change",
       });
     }
@@ -412,7 +412,7 @@ export async function pickLead(leadId: string, username: string): Promise<void> 
     if (lead) {
       await supabase.from("lead_events").insert({
         lead_id: leadId,
-        event_text: `${lead.company_name} picked up`,
+        event_text: `${lead.company_name} picked up by ${username}`,
         event_type: "claim",
       });
     }
@@ -540,11 +540,57 @@ export async function addSeamlessPhones(
 
 export async function updateLeadNotes(
   leadId: string,
-  fields: { notes?: string; follow_up_date?: string | null }
+  fields: { notes?: string; follow_up_date?: string | null },
+  actingUser: string
 ): Promise<void> {
   const supabase = getSupabaseServerClient();
+  const { data: before } = await supabase
+    .from("leads")
+    .select("company_name, notes, follow_up_date")
+    .eq("id", leadId)
+    .maybeSingle();
   const { error } = await supabase.from("leads").update(fields).eq("id", leadId);
   if (error) throw error;
+
+  if (!before) return;
+  const events: { lead_id: string; event_text: string; event_type: string }[] = [];
+  if ("notes" in fields && fields.notes !== before.notes) {
+    events.push({
+      lead_id: leadId,
+      event_text: `${before.company_name} → note / next step updated by ${actingUser}`,
+      event_type: "note",
+    });
+  }
+  if ("follow_up_date" in fields && fields.follow_up_date !== before.follow_up_date) {
+    events.push({
+      lead_id: leadId,
+      event_text: fields.follow_up_date
+        ? `${before.company_name} → follow-up set for ${fields.follow_up_date} by ${actingUser}`
+        : `${before.company_name} → follow-up cleared by ${actingUser}`,
+      event_type: "follow_up",
+    });
+  }
+  if (events.length > 0) {
+    // The lead update has already succeeded; an activity-log hiccup should
+    // never block the rep from saving their work.
+    try {
+      await supabase.from("lead_events").insert(events);
+    } catch {
+      // non-fatal
+    }
+  }
+}
+
+export async function getLeadActivity(leadId: string) {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("lead_events")
+    .select("id, event_text, event_type, created_at")
+    .eq("lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function updateLeadOwner(leadId: string, owner: string): Promise<void> {

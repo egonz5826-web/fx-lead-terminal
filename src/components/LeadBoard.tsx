@@ -203,6 +203,12 @@ export default function LeadBoard({
     );
   }
 
+  function handleContactsChange(leadId: string, contacts: Contact[]) {
+    setRows((prev) =>
+      prev.map((lead) => (lead.id === leadId ? { ...lead, contacts } : lead))
+    );
+  }
+
   function toggleSelected(leadId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -736,13 +742,17 @@ export default function LeadBoard({
                     companyName={lead.company_name}
                     hasWebsite={Boolean(lead.website)}
                     initialContacts={lead.contacts}
+                    onContactsChange={handleContactsChange}
                   />
                 </td>
                 <td className="px-3 py-1.5">
                   <NotesFollowUp
                     leadId={lead.id}
+                    companyName={lead.company_name}
                     notes={lead.notes}
                     followUpDate={lead.follow_up_date}
+                    status={lead.status}
+                    owner={lead.owner}
                     onFollowUpDateChange={handleFollowUpDateChange}
                   />
                 </td>

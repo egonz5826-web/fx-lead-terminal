@@ -9,11 +9,16 @@ export default function LeadContactsCell({
   companyName,
   hasWebsite,
   initialContacts,
+  onContactsChange,
 }: {
   leadId: string;
   companyName: string;
   hasWebsite: boolean;
   initialContacts: Contact[];
+  // Keep the parent lead board in sync. Without this, a contact enriched in
+  // Public Pool only lives in this cell's temporary state and disappears when
+  // the lead immediately moves into My Leads.
+  onContactsChange?: (leadId: string, contacts: Contact[]) => void;
 }) {
   const { setCreditsUsed } = useApolloUsage();
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
@@ -71,11 +76,13 @@ export default function LeadContactsCell({
         if (!res.ok) continue;
         const data = await res.json();
         if (data.phone) {
-          setContacts((prev) =>
-            prev.map((c) =>
+          setContacts((prev) => {
+            const next = prev.map((c) =>
               c.apollo_person_id === apolloPersonId ? { ...c, phone: data.phone } : c
-            )
-          );
+            );
+            onContactsChange?.(leadId, next);
+            return next;
+          });
           setPendingPhoneIds((prev) => {
             const next = new Set(prev);
             next.delete(apolloPersonId);
@@ -108,7 +115,13 @@ export default function LeadContactsCell({
         setError(data.error ?? "Something went wrong enriching this contact.");
         return;
       }
-      setContacts((prev) => [...prev, data.contact]);
+      setContacts((prev) => {
+        const next = prev.some((contact) => contact.id === data.contact.id)
+          ? prev.map((contact) => (contact.id === data.contact.id ? data.contact : contact))
+          : [...prev, data.contact];
+        onContactsChange?.(leadId, next);
+        return next;
+      });
       setCreditsUsed(data.creditsUsed);
       if (data.phonePending && data.contact.apollo_person_id) {
         setPendingPhoneIds((prev) => new Set(prev).add(data.contact.apollo_person_id));

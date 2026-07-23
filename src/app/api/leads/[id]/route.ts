@@ -45,7 +45,7 @@ export async function PATCH(
       await updateLeadNotes(id, {
         notes: body.notes,
         follow_up_date: body.follow_up_date ?? null,
-      });
+      }, user.username);
     }
 
     return NextResponse.json({ ok: true });

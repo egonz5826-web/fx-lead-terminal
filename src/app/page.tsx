@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import TickerBar from "@/components/TickerBar";
 import LeadBoard from "@/components/LeadBoard";
-import SignalsFeed from "@/components/SignalsFeed";
 import ApolloCreditsCounter from "@/components/ApolloCreditsCounter";
 import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
 import TerminalFooter from "@/components/TerminalFooter";
@@ -119,6 +118,9 @@ export default async function Home() {
             <Link href="/discover" className="text-neutral-400 hover:text-amber-400">
               DISCOVER
             </Link>
+            <Link href="/activity" className="text-neutral-400 hover:text-amber-400">
+              ACTIVITY
+            </Link>
             <Link href="/account" className="text-neutral-400 hover:text-amber-400">
               ACCOUNT
             </Link>
@@ -133,23 +135,16 @@ export default async function Home() {
           </nav>
         </header>
 
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:flex-row">
-          <div className="flex-1 lg:w-2/3">
-            <Suspense
-              fallback={
-                <div className="border border-emerald-900 bg-neutral-950 p-4 text-xs text-neutral-500">
-                  Loading lead board…
-                </div>
-              }
-            >
-              <LeadBoardSection isAdmin={isAdmin} owner={user.username} />
-            </Suspense>
-          </div>
-          <div className="lg:w-1/3">
-            <div className="h-[600px] lg:h-full">
-              <SignalsFeed />
-            </div>
-          </div>
+        <main className="flex flex-1 flex-col gap-4 p-4">
+          <Suspense
+            fallback={
+              <div className="border border-emerald-900 bg-neutral-950 p-4 text-xs text-neutral-500">
+                Loading lead board…
+              </div>
+            }
+          >
+            <LeadBoardSection isAdmin={isAdmin} owner={user.username} />
+          </Suspense>
         </main>
 
         <TerminalFooter />
