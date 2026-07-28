@@ -29,6 +29,8 @@ const KEYWORD_SUGGESTIONS = [
   "electronics",
 ];
 
+const CURRENCY_PAIRS = ["USD/MXN", "EUR/USD", "GBP/USD", "USD/CNY", "USD/JPY", "USD/CAD"];
+
 export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean }) {
   const { setCreditsUsed } = useApolloUsage();
 
@@ -39,7 +41,13 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
   const [page, setPage] = useState(1);
 
   const [corridor, setCorridor] = useState("Mexico → USA");
-  const [currencyExposure, setCurrencyExposure] = useState("USD/MXN");
+  const [currencies, setCurrencies] = useState<string[]>(["USD/MXN"]);
+
+  function toggleCurrency(pair: string) {
+    setCurrencies((prev) =>
+      prev.includes(pair) ? prev.filter((c) => c !== pair) : [...prev, pair]
+    );
+  }
   const [owner, setOwner] = useState(OWNER_OPTIONS[0].value);
 
   const [suggestions, setSuggestions] = useState<KeywordSuggestion[]>([]);
@@ -100,7 +108,9 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
       else parts.push(s.term);
       return parts.join(", ");
     });
-    if (!present && s.currency) setCurrencyExposure(s.currency);
+    if (!present && s.currency) {
+      setCurrencies((prev) => (prev.includes(s.currency) ? prev : [...prev, s.currency]));
+    }
   }
 
   async function runSearch(targetPage: number) {
@@ -189,7 +199,13 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
       const res = await fetch("/api/leads/add-discovered", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companies: chosen, corridor, currencyExposure, owner, keywords }),
+        body: JSON.stringify({
+          companies: chosen,
+          corridor,
+          currencyExposure: currencies.join(", "),
+          owner,
+          keywords,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -281,23 +297,66 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
                 })}
               </div>
               <p className="mt-1 text-[10px] text-neutral-600">
-                Click to add a niche to your search (adds the term above and sets the currency).
+                Click to add a niche to your search (adds the term above and its currency below).
                 Click again to remove.
               </p>
             </>
           )}
         </div>
 
-        <h2 className="mb-3 mt-5 text-xs font-semibold tracking-widest text-emerald-500">
+        <h2 className="mb-1 mt-5 text-xs font-semibold tracking-widest text-emerald-500">
           TAG NEW LEADS AS
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Corridor" value={corridor} onChange={setCorridor} placeholder="Mexico → USA" />
+        <p className="mb-3 text-[10px] text-neutral-600">
+          Both optional — leave corridor blank and pick any number of currencies (or none) if
+          you&apos;re casting a wide net.
+        </p>
+
+        <div className="mb-3">
+          <span className="mb-1 block text-[10px] uppercase tracking-wider text-neutral-400">
+            Currency exposure — pick any that apply
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {CURRENCY_PAIRS.map((pair) => {
+              const on = currencies.includes(pair);
+              return (
+                <button
+                  key={pair}
+                  type="button"
+                  onClick={() => toggleCurrency(pair)}
+                  className={`border px-2 py-0.5 text-[11px] font-semibold ${
+                    on
+                      ? "border-emerald-600 bg-emerald-900/40 text-emerald-300"
+                      : "border-neutral-700 bg-black text-neutral-400 hover:border-emerald-600 hover:text-emerald-400"
+                  }`}
+                >
+                  {on ? "✓ " : ""}
+                  {pair}
+                </button>
+              );
+            })}
+            {/* Any AI-suggested currency outside the standard set */}
+            {currencies
+              .filter((c) => !CURRENCY_PAIRS.includes(c))
+              .map((pair) => (
+                <button
+                  key={pair}
+                  type="button"
+                  onClick={() => toggleCurrency(pair)}
+                  className="border border-emerald-600 bg-emerald-900/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-300"
+                >
+                  ✓ {pair}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
-            label="Currency Exposure"
-            value={currencyExposure}
-            onChange={setCurrencyExposure}
-            placeholder="USD/MXN"
+            label="Corridor (optional)"
+            value={corridor}
+            onChange={setCorridor}
+            placeholder="leave blank for any"
           />
           {isAdmin && (
             <label className="block">

@@ -98,8 +98,15 @@ const CORRIDOR_SCORES: Record<string, number> = {
   "USD/CAD": 55,
 };
 
+// A lead can carry several currency pairs (or none). Score by the best FX
+// opportunity among them; neutral 60 when unspecified.
 function corridorScore(currencyExposure: string): number {
-  return CORRIDOR_SCORES[currencyExposure.trim().toUpperCase()] ?? 60;
+  const parts = currencyExposure
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+  if (parts.length === 0) return 60;
+  return Math.max(...parts.map((p) => CORRIDOR_SCORES[p] ?? 60));
 }
 
 export interface CreateLeadsResult {
@@ -165,8 +172,8 @@ export async function createLeadsFromDiscovery(
         phone: details?.phone ?? c.phone ?? null,
         city: details?.city ?? "Unknown",
         state: details?.state ?? "Unknown",
-        import_corridors: context.corridor,
-        currency_exposure: context.currencyExposure,
+        import_corridors: context.corridor.trim() || "Any",
+        currency_exposure: context.currencyExposure.trim() || "Unspecified",
         est_annual_teu: employees ? employees * 80 : 5000,
         volume_score: volumeScore(revenue, employees),
         corridor_score: corridorScore(context.currencyExposure),

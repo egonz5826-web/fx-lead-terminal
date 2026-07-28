@@ -86,10 +86,20 @@ export default function LeadBoard({
     () => Array.from(new Set(rows.map((r) => r.owner).filter(Boolean))).sort(),
     [rows]
   );
-  const currencies = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.currency_exposure).filter(Boolean))).sort(),
-    [rows]
-  );
+  // A lead can carry several currency pairs (comma-separated); list the
+  // individual pairs so the filter matches any lead that includes it.
+  const currencies = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      for (const c of (r.currency_exposure ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        set.add(c);
+      }
+    }
+    return Array.from(set).sort();
+  }, [rows]);
   const industries = useMemo(
     () =>
       Array.from(
@@ -293,7 +303,14 @@ export default function LeadBoard({
       }
       if (statusFilter !== "All" && lead.status !== statusFilter) return false;
       if (ownerFilter !== "All" && lead.owner !== ownerFilter) return false;
-      if (currencyFilter !== "All" && lead.currency_exposure !== currencyFilter) return false;
+      if (
+        currencyFilter !== "All" &&
+        !(lead.currency_exposure ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .includes(currencyFilter)
+      )
+        return false;
       if (industryFilter !== "All" && (lead.industry ?? "") !== industryFilter) return false;
       if (discoveriesOnly && lead.discovered_by !== currentUser) return false;
       if (dueOnly && !(lead.follow_up_date && lead.follow_up_date <= today)) return false;

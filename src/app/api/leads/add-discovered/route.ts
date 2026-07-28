@@ -14,12 +14,8 @@ export async function POST(request: Request) {
     if (!Array.isArray(companies) || companies.length === 0) {
       return NextResponse.json({ error: "No companies selected." }, { status: 400 });
     }
-    if (!corridor || !currencyExposure) {
-      return NextResponse.json(
-        { error: "Corridor and currency exposure are required." },
-        { status: 400 }
-      );
-    }
+    // Corridor and currency are optional — a rep can add leads without pinning
+    // either (they default to "Any" / "Unspecified").
 
     // Discovered leads go into the shared pool so everyone can see them; a rep
     // claims one later by marking it Prospect. An admin may still assign a
@@ -28,8 +24,8 @@ export async function POST(request: Request) {
       user.role === "admin" && typeof owner === "string" && owner ? owner : UNASSIGNED;
 
     const result = await createLeadsFromDiscovery(companies as OrganizationSearchResult[], {
-      corridor,
-      currencyExposure,
+      corridor: typeof corridor === "string" ? corridor : "",
+      currencyExposure: typeof currencyExposure === "string" ? currencyExposure : "",
       owner: assignedOwner,
       discoveredBy: user.username,
       keywords: typeof keywords === "string" ? keywords : "",
