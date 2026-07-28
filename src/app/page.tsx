@@ -7,6 +7,7 @@ import { ApolloUsageProvider } from "@/components/ApolloUsageContext";
 import TerminalFooter from "@/components/TerminalFooter";
 import KpiStrip from "@/components/KpiStrip";
 import LiveClock from "@/components/LiveClock";
+import AutoRefresh from "@/components/AutoRefresh";
 import {
   getApolloCreditsUsed,
   getContactsByLeadIds,
@@ -96,6 +97,7 @@ export default async function Home() {
 
   return (
     <ApolloUsageProvider initialCredits={creditsUsed}>
+      <AutoRefresh />
       <div className="flex min-h-screen flex-col">
         <TickerBar />
 
@@ -124,6 +126,11 @@ export default async function Home() {
             <Link href="/account" className="text-neutral-400 hover:text-amber-400">
               ACCOUNT
             </Link>
+            {isAdmin && (
+              <Link href="/team" className="text-neutral-400 hover:text-amber-400">
+                TEAM
+              </Link>
+            )}
             {isAdmin && (
               <Link href="/settings" className="text-neutral-400 hover:text-amber-400">
                 SETTINGS

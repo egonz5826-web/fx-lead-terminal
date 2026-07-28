@@ -4,6 +4,9 @@ import type { OrganizationSearchResult } from "@/lib/apollo";
 import { getSessionUser } from "@/lib/users";
 import { UNASSIGNED } from "@/lib/team";
 
+// Discovery enriches + AI-scores each new lead, so give it room.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();

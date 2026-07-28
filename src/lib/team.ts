@@ -8,8 +8,8 @@ export interface TeamMember {
 
 export const TEAM: TeamMember[] = [
   { username: "emilio", display_name: "Emilio", role: "admin" },
+  { username: "jesus", display_name: "Jesus Heiras", role: "admin" },
   { username: "marcel", display_name: "Marcel Remy", role: "rep" },
-  { username: "jesus", display_name: "Jesus Heiras", role: "rep" },
   { username: "beto", display_name: "Beto Flores", role: "rep" },
 ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Contact, LeadPhone, LeadStatus, LeadWithScore } from "@/lib/types";
 import { LEAD_STATUSES, CLAIMING_STATUSES, HIDDEN_STATUS } from "@/lib/types";
@@ -64,6 +64,13 @@ export default function LeadBoard({
   const [pickingId, setPickingId] = useState<string | null>(null);
   const [seamlessId, setSeamlessId] = useState<string | null>(null);
   const [seamlessMsg, setSeamlessMsg] = useState<Record<string, string>>({});
+
+  // Sync to fresh server data when AutoRefresh (or any navigation) re-runs the
+  // page — without this, the board keeps its first snapshot and needs a manual
+  // reload to reflect teammates' changes or newly discovered leads.
+  useEffect(() => {
+    setRows(leads);
+  }, [leads]);
   const [sortKey, setSortKey] = useState<SortKey>("fx_opportunity_score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 

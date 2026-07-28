@@ -6,7 +6,8 @@ import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 import { enrichOrganization } from "./apollo";
 import { normalizeDomain } from "./matching";
 import { scoreLeadWithAI } from "./ai-scoring";
-import { UNASSIGNED } from "./team";
+import { UNASSIGNED, TEAM } from "./team";
+import { LEAD_STATUSES } from "./types";
 import { CLAIMING_STATUSES as CLAIMING_LIST, HIDDEN_STATUS, CLAIM_TTL_DAYS } from "./types";
 
 // Statuses that "claim" a lead into the picking rep's private tab.
@@ -28,6 +29,58 @@ export async function getLeads(owner?: string): Promise<Lead[]> {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export interface RepStats {
+  username: string;
+  display_name: string;
+  role: string;
+  owned: number;
+  discovered: number;
+  dueFollowUps: number;
+  byStatus: Record<string, number>;
+}
+
+export interface TeamStats {
+  reps: RepStats[];
+  pool: { total: number; unclaimed: number; monexClients: number };
+}
+
+// Accountability rollup for the boss view: per-person pipeline + pool health.
+export async function getTeamStats(): Promise<TeamStats> {
+  const supabase = getSupabaseServerClient();
+  const { data: leads } = await supabase
+    .from("leads")
+    .select("owner, status, discovered_by, follow_up_date");
+  const rows = leads ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  const reps: RepStats[] = TEAM.map((m) => {
+    const owned = rows.filter((l) => l.owner === m.username);
+    const byStatus: Record<string, number> = {};
+    for (const s of LEAD_STATUSES) byStatus[s] = 0;
+    for (const l of owned) if (l.status in byStatus) byStatus[l.status] += 1;
+    return {
+      username: m.username,
+      display_name: m.display_name,
+      role: m.role,
+      owned: owned.length,
+      discovered: rows.filter((l) => l.discovered_by === m.username).length,
+      dueFollowUps: owned.filter(
+        (l) => l.follow_up_date && l.follow_up_date <= today
+      ).length,
+      byStatus,
+    };
+  });
+
+  return {
+    reps,
+    pool: {
+      total: rows.length,
+      unclaimed: rows.filter((l) => l.owner === UNASSIGNED).length,
+      monexClients: rows.filter((l) => l.status === "Already a Monex Client").length,
+    },
+  };
 }
 
 // Ownership guard for mutating routes: true if the user may modify this lead.
@@ -192,14 +245,56 @@ export async function createLeadsFromDiscovery(
 
   if (rows.length === 0) return { added: 0, skippedDuplicates };
 
-  const { error, count } = await supabase.from("leads").insert(rows, { count: "exact" });
+  const { data: inserted, error } = await supabase
+    .from("leads")
+    .insert(rows)
+    .select(
+      "id, company_name, city, state, import_corridors, currency_exposure, volume_score, growth_score, corridor_score, est_annual_teu, latest_signal"
+    );
   if (error) throw error;
 
   if (enrichmentCallsMade > 0) {
     await incrementApolloCreditsUsedBy(enrichmentCallsMade);
   }
 
-  return { added: count ?? rows.length, skippedDuplicates };
+  // Auto-score each new lead with the AI analyst so it lands on the board fully
+  // ranked and explained (pennies each, no Apollo credits). Non-fatal: if the
+  // AI is unavailable the lead is still added, just unscored.
+  const fresh = inserted ?? [];
+  const BATCH = 5;
+  for (let i = 0; i < fresh.length; i += BATCH) {
+    await Promise.all(
+      fresh.slice(i, i + BATCH).map(async (l) => {
+        try {
+          const result = await scoreLeadWithAI({
+            company_name: l.company_name,
+            city: l.city,
+            state: l.state,
+            import_corridors: l.import_corridors,
+            currency_exposure: l.currency_exposure,
+            volume_score: l.volume_score,
+            growth_score: l.growth_score,
+            corridor_score: l.corridor_score,
+            est_annual_teu: l.est_annual_teu,
+            latest_signal: l.latest_signal,
+            contacts_count: 0,
+          });
+          await supabase
+            .from("leads")
+            .update({
+              ai_score: result.score,
+              ai_rationale: result.rationale,
+              ai_scored_at: new Date().toISOString(),
+            })
+            .eq("id", l.id);
+        } catch {
+          // leave unscored — admin can run the analyst later
+        }
+      })
+    );
+  }
+
+  return { added: fresh.length, skippedDuplicates };
 }
 
 export interface RescoreResult {
