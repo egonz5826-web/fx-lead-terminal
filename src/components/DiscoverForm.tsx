@@ -29,7 +29,12 @@ const KEYWORD_SUGGESTIONS = [
   "electronics",
 ];
 
-const CURRENCY_PAIRS = ["USD/MXN", "EUR/USD", "GBP/USD", "USD/CNY", "USD/JPY", "USD/CAD"];
+// Trade currencies for the buy/sell pair builder — build ANY pair, not a fixed set.
+const CURRENCIES = [
+  "USD", "MXN", "EUR", "GBP", "CAD", "CNY", "JPY", "BRL", "COP", "CLP", "ARS",
+  "PEN", "INR", "AUD", "CHF", "HKD", "SGD", "KRW", "TWD", "ZAR", "AED", "SEK",
+  "NOK", "PLN", "TRY", "THB", "NZD", "ILS",
+];
 
 export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean }) {
   const { setCreditsUsed } = useApolloUsage();
@@ -42,11 +47,19 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
 
   const [corridor, setCorridor] = useState("Mexico → USA");
   const [currencies, setCurrencies] = useState<string[]>(["USD/MXN"]);
+  const [buyCcy, setBuyCcy] = useState("USD");
+  const [sellCcy, setSellCcy] = useState("MXN");
 
   function toggleCurrency(pair: string) {
     setCurrencies((prev) =>
       prev.includes(pair) ? prev.filter((c) => c !== pair) : [...prev, pair]
     );
+  }
+
+  function addPair() {
+    if (buyCcy === sellCcy) return;
+    const pair = `${buyCcy}/${sellCcy}`;
+    setCurrencies((prev) => (prev.includes(pair) ? prev : [...prev, pair]));
   }
   const [owner, setOwner] = useState(OWNER_OPTIONS[0].value);
 
@@ -314,41 +327,69 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
 
         <div className="mb-3">
           <span className="mb-1 block text-[10px] uppercase tracking-wider text-neutral-400">
-            Currency exposure — pick any that apply
+            Currency exposure — build any pair (buy / sell)
           </span>
-          <div className="flex flex-wrap gap-1.5">
-            {CURRENCY_PAIRS.map((pair) => {
-              const on = currencies.includes(pair);
-              return (
+          <div className="flex flex-wrap items-end gap-2">
+            <label>
+              <span className="mb-0.5 block text-[9px] uppercase tracking-wider text-neutral-600">
+                Buy
+              </span>
+              <select
+                value={buyCcy}
+                onChange={(e) => setBuyCcy(e.target.value)}
+                className="border border-neutral-700 bg-black px-2 py-1.5 text-xs text-emerald-400 outline-none focus:border-emerald-600"
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="pb-2 text-neutral-500">/</span>
+            <label>
+              <span className="mb-0.5 block text-[9px] uppercase tracking-wider text-neutral-600">
+                Sell
+              </span>
+              <select
+                value={sellCcy}
+                onChange={(e) => setSellCcy(e.target.value)}
+                className="border border-neutral-700 bg-black px-2 py-1.5 text-xs text-emerald-400 outline-none focus:border-emerald-600"
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={addPair}
+              disabled={buyCcy === sellCcy}
+              className="border border-emerald-700 bg-emerald-950/40 px-3 py-1.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-900/40 disabled:opacity-40"
+            >
+              + ADD PAIR
+            </button>
+          </div>
+          {currencies.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {currencies.map((pair) => (
                 <button
                   key={pair}
                   type="button"
                   onClick={() => toggleCurrency(pair)}
-                  className={`border px-2 py-0.5 text-[11px] font-semibold ${
-                    on
-                      ? "border-emerald-600 bg-emerald-900/40 text-emerald-300"
-                      : "border-neutral-700 bg-black text-neutral-400 hover:border-emerald-600 hover:text-emerald-400"
-                  }`}
-                >
-                  {on ? "✓ " : ""}
-                  {pair}
-                </button>
-              );
-            })}
-            {/* Any AI-suggested currency outside the standard set */}
-            {currencies
-              .filter((c) => !CURRENCY_PAIRS.includes(c))
-              .map((pair) => (
-                <button
-                  key={pair}
-                  type="button"
-                  onClick={() => toggleCurrency(pair)}
+                  title={`Remove ${pair}`}
                   className="border border-emerald-600 bg-emerald-900/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-300"
                 >
-                  ✓ {pair}
+                  {pair} <span className="ml-1 text-neutral-500">✕</span>
                 </button>
               ))}
-          </div>
+            </div>
+          )}
+          <p className="mt-1 text-[10px] text-neutral-600">
+            e.g. Buy USD / Sell MXN → USD/MXN. Add as many pairs as you want, or none.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

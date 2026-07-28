@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Contact, LeadPhone, LeadStatus, LeadWithScore } from "@/lib/types";
+import type { FxPair } from "@/lib/fx";
 import { LEAD_STATUSES, CLAIMING_STATUSES, HIDDEN_STATUS } from "@/lib/types";
 import { OWNER_OPTIONS, UNASSIGNED, ownerLabel } from "@/lib/team";
 import LeadContactsCell from "./LeadContactsCell";
@@ -53,10 +54,14 @@ export default function LeadBoard({
   leads,
   isAdmin = false,
   currentUser,
+  fxPairs = [],
+  hotPairs = {},
 }: {
   leads: LeadWithContacts[];
   isAdmin?: boolean;
   currentUser: string;
+  fxPairs?: FxPair[];
+  hotPairs?: Record<string, number>;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(leads);
@@ -84,6 +89,19 @@ export default function LeadBoard({
   const [industryFilter, setIndustryFilter] = useState("All");
   const [dueOnly, setDueOnly] = useState(false);
   const [discoveriesOnly, setDiscoveriesOnly] = useState(false);
+  const [hotOnly, setHotOnly] = useState(false);
+
+  // A lead is "hot" when one of its currency pairs moved sharply today — a
+  // timely reason to call. Returns the biggest such move, or null.
+  function leadHotMove(cur: string | null): number | null {
+    if (!cur) return null;
+    let best: number | null = null;
+    for (const p of cur.split(",").map((s) => s.trim())) {
+      const mv = hotPairs[p];
+      if (mv !== undefined && (best === null || Math.abs(mv) > Math.abs(best))) best = mv;
+    }
+    return best;
+  }
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOwner, setBulkOwner] = useState(OWNER_OPTIONS[0].value);
@@ -119,6 +137,16 @@ export default function LeadBoard({
     const today = todayStr();
     return rows.filter((r) => r.follow_up_date && r.follow_up_date <= today).length;
   }, [rows]);
+
+  const hotCount = useMemo(
+    () => rows.filter((r) => leadHotMove(r.currency_exposure) !== null).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, hotPairs]
+  );
+  const sortedFx = useMemo(
+    () => [...fxPairs].sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0)),
+    [fxPairs]
+  );
 
   const publicCount = useMemo(
     () =>
@@ -320,6 +348,7 @@ export default function LeadBoard({
         return false;
       if (industryFilter !== "All" && (lead.industry ?? "") !== industryFilter) return false;
       if (discoveriesOnly && lead.discovered_by !== currentUser) return false;
+      if (hotOnly && leadHotMove(lead.currency_exposure) === null) return false;
       if (dueOnly && !(lead.follow_up_date && lead.follow_up_date <= today)) return false;
       if (query) {
         const haystack =
@@ -336,6 +365,7 @@ export default function LeadBoard({
     currencyFilter,
     industryFilter,
     discoveriesOnly,
+    hotOnly,
     dueOnly,
     tab,
     currentUser,
@@ -429,6 +459,45 @@ export default function LeadBoard({
         )}
       </div>
 
+      {fxPairs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 bg-black/40 px-3 py-2 text-[11px]">
+          <span className="font-semibold tracking-wider text-amber-400">🔥 VOLATILITY DESK</span>
+          {sortedFx.map((p) => {
+            const isHot = hotPairs[p.pair] !== undefined;
+            const up = (p.changePct ?? 0) >= 0;
+            const exposed = isHot
+              ? rows.filter((r) =>
+                  (r.currency_exposure ?? "")
+                    .split(",")
+                    .map((s) => s.trim())
+                    .includes(p.pair)
+                ).length
+              : 0;
+            return (
+              <span key={p.pair} className={isHot ? "text-neutral-100" : "text-neutral-500"}>
+                <span className="tabular font-semibold">{p.pair}</span>{" "}
+                {p.changePct !== null ? (
+                  <span className={up ? "text-emerald-400" : "text-red-400"}>
+                    {up ? "▲" : "▼"}
+                    {Math.abs(p.changePct)}%
+                  </span>
+                ) : (
+                  <span className="text-neutral-600">—</span>
+                )}
+                {isHot && exposed > 0 && (
+                  <span className="ml-1 text-amber-400">· {exposed} leads</span>
+                )}
+              </span>
+            );
+          })}
+          {Object.keys(hotPairs).length === 0 && (
+            <span className="text-[10px] text-neutral-600">
+              Quiet market — no sharp moves to act on today.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <input
           type="text"
@@ -500,6 +569,19 @@ export default function LeadBoard({
         >
           🔍 My discoveries
         </button>
+        {hotCount > 0 && (
+          <button
+            onClick={() => setHotOnly((h) => !h)}
+            title="Show only leads whose currency moved sharply today — call while the pitch is hot."
+            className={`border px-2 py-1 text-[11px] font-semibold ${
+              hotOnly
+                ? "border-amber-600 bg-amber-950/40 text-amber-400"
+                : "border-neutral-700 text-neutral-300 hover:border-amber-700 hover:text-amber-400"
+            }`}
+          >
+            🔥 Movers only ({hotCount})
+          </button>
+        )}
         <button
           onClick={() => {
             setSortKey("created_at");
@@ -530,6 +612,7 @@ export default function LeadBoard({
           currencyFilter !== "All" ||
           industryFilter !== "All" ||
           discoveriesOnly ||
+          hotOnly ||
           dueOnly) && (
           <button
             onClick={() => {
@@ -539,6 +622,7 @@ export default function LeadBoard({
               setCurrencyFilter("All");
               setIndustryFilter("All");
               setDiscoveriesOnly(false);
+              setHotOnly(false);
               setDueOnly(false);
             }}
             className="text-[11px] text-neutral-500 hover:text-neutral-300"
@@ -661,6 +745,18 @@ export default function LeadBoard({
                   }`}
                 >
                   {lead.company_name}
+                  {(() => {
+                    const mv = leadHotMove(lead.currency_exposure);
+                    return mv !== null ? (
+                      <span
+                        title={`${lead.currency_exposure} moved ${mv >= 0 ? "+" : ""}${mv}% today — timely to call`}
+                        className="ml-2 whitespace-nowrap border border-amber-700 bg-amber-950/50 px-1 py-0.5 text-[9px] font-semibold text-amber-400"
+                      >
+                        🔥 {mv >= 0 ? "+" : ""}
+                        {mv}%
+                      </span>
+                    ) : null;
+                  })()}
                   <a
                     href={`https://www.importyeti.com/search?q=${encodeURIComponent(lead.company_name)}`}
                     target="_blank"

@@ -18,6 +18,7 @@ import {
 } from "@/lib/data";
 import { withScores } from "@/lib/scoring";
 import { findMatchingClient } from "@/lib/matching";
+import { getFxMoves, hotPairs } from "@/lib/fx";
 import { getSessionUser } from "@/lib/users";
 import { redirect } from "next/navigation";
 
@@ -25,11 +26,13 @@ export const dynamic = "force-dynamic";
 
 async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: string }) {
   try {
-    const [leads, weights, existingClients] = await Promise.all([
+    const [leads, weights, existingClients, fx] = await Promise.all([
       getLeads(isAdmin ? undefined : owner),
       getWeights(),
       getExistingClients(),
+      getFxMoves(),
     ]);
+    const hot = hotPairs(fx.pairs);
     const leadIds = leads.map((l) => l.id);
     const [contactsByLead, phonesByLead] = await Promise.all([
       getContactsByLeadIds(leadIds),
@@ -74,7 +77,13 @@ async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: s
     return (
       <div className="flex flex-col gap-3">
         <KpiStrip kpis={kpis} />
-        <LeadBoard leads={scored} isAdmin={isAdmin} currentUser={owner} />
+        <LeadBoard
+          leads={scored}
+          isAdmin={isAdmin}
+          currentUser={owner}
+          fxPairs={fx.pairs}
+          hotPairs={hot}
+        />
       </div>
     );
   } catch (err) {
