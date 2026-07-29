@@ -146,6 +146,11 @@ export default async function Home() {
               ACCOUNT
             </Link>
             {isAdmin && (
+              <Link href="/clients" className="text-neutral-400 hover:text-amber-400">
+                CLIENTS
+              </Link>
+            )}
+            {isAdmin && (
               <Link href="/team" className="text-neutral-400 hover:text-amber-400">
                 TEAM
               </Link>

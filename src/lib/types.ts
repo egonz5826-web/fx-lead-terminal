@@ -100,6 +100,55 @@ export interface SignalItem {
   link?: string;
 }
 
+// Jesus's client book (digitized from his color-coded Excel).
+export interface ClientBook {
+  id: string;
+  number: number | null;
+  name: string;
+  status: string;
+  on_sf: boolean;
+  consultant: string | null;
+  website: string | null;
+  referenciador: string | null;
+  communication: string | null;
+  dealer: string | null;
+  traded: string | null;
+  last_follow_up: string | null;
+  follow_up: string | null;
+  comments: string | null;
+  contact_rr: string | null;
+  owner: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const FOLLOW_UP_STATUS = "Chucho needs to follow up";
+
+// Client statuses mirroring Jesus's Excel legend colors. `chip` = Tailwind
+// classes for the status badge.
+export const CLIENT_STATUSES: { value: string; chip: string }[] = [
+  { value: "Open and trading", chip: "bg-emerald-950 text-emerald-400 border-emerald-800" },
+  { value: "On SF", chip: "bg-sky-950 text-sky-400 border-sky-800" },
+  { value: "Pending Compliance", chip: "bg-pink-950 text-pink-400 border-pink-800" },
+  { value: "On hold by client", chip: "bg-yellow-950 text-yellow-400 border-yellow-800" },
+  { value: "Cancelled", chip: "bg-red-950 text-red-400 border-red-900" },
+  {
+    value: "On hold by Management (Mexican corp)",
+    chip: "bg-orange-950 text-orange-400 border-orange-800",
+  },
+  { value: "Open but not trading", chip: "bg-purple-950 text-purple-400 border-purple-800" },
+  { value: "VIP / priority", chip: "bg-red-900 text-red-300 border-red-700" },
+  { value: FOLLOW_UP_STATUS, chip: "bg-blue-950 text-blue-400 border-blue-700" },
+  { value: "Uncategorized", chip: "bg-neutral-900 text-neutral-400 border-neutral-700" },
+];
+
+export function clientStatusChip(status: string): string {
+  return (
+    CLIENT_STATUSES.find((s) => s.value === status)?.chip ??
+    "bg-neutral-900 text-neutral-400 border-neutral-700"
+  );
+}
+
 export interface Contact {
   id: string;
   lead_id: string;
