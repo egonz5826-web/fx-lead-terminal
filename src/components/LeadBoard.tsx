@@ -11,6 +11,7 @@ import StatusDropdown from "./StatusDropdown";
 import OwnerDropdown from "./OwnerDropdown";
 import NotesFollowUp from "./NotesFollowUp";
 import ScoreBar from "./ScoreBar";
+import OutreachButton from "./OutreachButton";
 
 export type LeadWithContacts = LeadWithScore & {
   contacts: Contact[];
@@ -805,6 +806,7 @@ export default function LeadBoard({
                   ) : (
                     <span className="text-neutral-600">—</span>
                   )}
+                  <OutreachButton leadId={lead.id} companyName={lead.company_name} />
                 </td>
                 <td className="max-w-[220px] whitespace-normal break-words px-3 py-1.5 align-top text-neutral-400">
                   {lead.latest_signal}
