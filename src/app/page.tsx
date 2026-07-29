@@ -8,6 +8,7 @@ import TerminalFooter from "@/components/TerminalFooter";
 import KpiStrip from "@/components/KpiStrip";
 import LiveClock from "@/components/LiveClock";
 import AutoRefresh from "@/components/AutoRefresh";
+import MorningBrief from "@/components/MorningBrief";
 import {
   getApolloCreditsUsed,
   getContactsByLeadIds,
@@ -24,7 +25,15 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: string }) {
+async function LeadBoardSection({
+  isAdmin,
+  owner,
+  displayName,
+}: {
+  isAdmin: boolean;
+  owner: string;
+  displayName: string;
+}) {
   try {
     const [leads, weights, existingClients, fx] = await Promise.all([
       getLeads(isAdmin ? undefined : owner),
@@ -76,6 +85,7 @@ async function LeadBoardSection({ isAdmin, owner }: { isAdmin: boolean; owner: s
 
     return (
       <div className="flex flex-col gap-3">
+        <MorningBrief leads={scored} currentUser={owner} displayName={displayName} />
         <KpiStrip kpis={kpis} />
         <LeadBoard
           leads={scored}
@@ -159,7 +169,11 @@ export default async function Home() {
               </div>
             }
           >
-            <LeadBoardSection isAdmin={isAdmin} owner={user.username} />
+            <LeadBoardSection
+              isAdmin={isAdmin}
+              owner={user.username}
+              displayName={user.display_name}
+            />
           </Suspense>
         </main>
 
