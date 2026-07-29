@@ -45,9 +45,10 @@ export function buildHtml(clients: ClientBook[], base: string): string {
     .map(
       (c) => `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${esc(c.name)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#555;">${esc(c.follow_up ?? "—")}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#777;font-size:13px;">${esc(c.comments ?? "")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top;">${esc(c.name)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#555;font-size:13px;vertical-align:top;">${esc(c.last_follow_up ?? "—").replace(/\n/g, "<br>")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#555;vertical-align:top;">${esc(c.follow_up ?? "—")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#777;font-size:13px;vertical-align:top;">${esc(c.comments ?? "")}</td>
       </tr>`
     )
     .join("");
@@ -60,8 +61,9 @@ export function buildHtml(clients: ClientBook[], base: string): string {
       <thead>
         <tr style="background:#fafafa;text-align:left;font-size:12px;text-transform:uppercase;color:#888;">
           <th style="padding:8px 12px;">Client</th>
-          <th style="padding:8px 12px;">Follow-up note</th>
-          <th style="padding:8px 12px;">Comments</th>
+          <th style="padding:8px 12px;">Last contact</th>
+          <th style="padding:8px 12px;">Next follow-up</th>
+          <th style="padding:8px 12px;">Notes</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>

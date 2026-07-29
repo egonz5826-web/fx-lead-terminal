@@ -186,8 +186,8 @@ export default function ClientBookView({ clients }: { clients: ClientBook[] }) {
                   {c.consultant ?? "—"}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-amber-300">{c.traded ?? "—"}</td>
-                <td className="px-3 py-1.5">
-                  <InlineText
+                <td className="px-3 py-1.5 align-top">
+                  <LogFollowUp
                     value={c.last_follow_up}
                     onSave={(v) => saveField(c.id, { last_follow_up: v })}
                   />
@@ -221,6 +221,97 @@ export default function ClientBookView({ clients }: { clients: ClientBook[] }) {
       </div>
 
       {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onAdd={handleAdd} saving={saving} />}
+    </div>
+  );
+}
+
+const CHANNELS = ["WhatsApp", "Email", "Call", "Teams", "In person", "Other"];
+
+function todayMMDDYY(): string {
+  const d = new Date();
+  return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(
+    2,
+    "0"
+  )}/${String(d.getFullYear()).slice(2)}`;
+}
+
+// Structured contact logger: pick channel + date + note; prepends an entry to
+// the client's follow-up history so it reads like a running log.
+function LogFollowUp({
+  value,
+  onSave,
+}: {
+  value: string | null;
+  onSave: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [channel, setChannel] = useState("WhatsApp");
+  const [date, setDate] = useState(todayMMDDYY);
+  const [note, setNote] = useState("");
+
+  function save() {
+    const entry = `${date} · ${channel}${note.trim() ? ` · ${note.trim()}` : ""}`;
+    onSave(value ? `${entry}\n${value}` : entry);
+    setNote("");
+    setOpen(false);
+  }
+
+  const field =
+    "border border-neutral-700 bg-black px-1.5 py-1 text-[11px] text-emerald-400 outline-none focus:border-emerald-600";
+
+  return (
+    <div className="min-w-[170px]">
+      {value && (
+        <div className="mb-1 max-w-[220px] whitespace-pre-wrap text-[10px] leading-tight text-neutral-400">
+          {value}
+        </div>
+      )}
+      {open ? (
+        <div className="space-y-1">
+          <div className="flex gap-1">
+            <select value={channel} onChange={(e) => setChannel(e.target.value)} className={field}>
+              {CHANNELS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <input
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className={`${field} w-20`}
+              title="Date contacted"
+            />
+          </div>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="note (optional)"
+            className={`${field} w-full`}
+          />
+          <div className="flex gap-1">
+            <button
+              onClick={save}
+              className="border border-emerald-700 bg-emerald-950/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-900/40"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="px-2 py-0.5 text-[10px] text-neutral-500 hover:text-neutral-300"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="text-[10px] font-semibold text-emerald-400 hover:text-amber-400"
+        >
+          ＋ log contact
+        </button>
+      )}
     </div>
   );
 }
