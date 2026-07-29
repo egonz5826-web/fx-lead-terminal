@@ -63,14 +63,16 @@ def classify(rgb):
         return "On hold by Management (Mexican corp)"
     if 45 <= H < 70:
         return "On hold by client"
-    if 70 <= H < 160:
+    if 70 <= H < 165:
         return "Open and trading"
-    if 160 <= H < 200:
-        return "On SF"
-    if 200 <= H < 255:
+    if 165 <= H < 255:
+        # All blue/cyan shades are Jesus's follow-up color. (Salesforce status
+        # lives in the on_sf checkbox, not a fill color.)
         return "Chucho needs to follow up"
     if 255 <= H < 300:
         return "Open but not trading"
+    if 300 <= H < 345:
+        return "Pending Compliance"
     return "Uncategorized"
 
 def cell(r, c):
