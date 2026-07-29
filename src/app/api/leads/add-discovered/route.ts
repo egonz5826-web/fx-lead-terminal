@@ -20,11 +20,16 @@ export async function POST(request: Request) {
     // Corridor and currency are optional — a rep can add leads without pinning
     // either (they default to "Any" / "Unspecified").
 
-    // Discovered leads go into the shared pool so everyone can see them; a rep
-    // claims one later by marking it Prospect. An admin may still assign a
-    // batch directly to a specific rep.
+    // Discovered leads land in the finder's private "My Leads" (they did the
+    // work — they get first dibs; the 15-day timer still releases stale ones).
+    // An admin can override the assignment via the "Assign to" dropdown
+    // (including sending a batch to the shared pool with "Unassigned").
     const assignedOwner =
-      user.role === "admin" && typeof owner === "string" && owner ? owner : UNASSIGNED;
+      user.role === "admin"
+        ? typeof owner === "string" && owner
+          ? owner
+          : UNASSIGNED
+        : user.username;
 
     const result = await createLeadsFromDiscovery(companies as OrganizationSearchResult[], {
       corridor: typeof corridor === "string" ? corridor : "",

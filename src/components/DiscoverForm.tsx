@@ -225,7 +225,9 @@ export default function DiscoverForm({ isAdmin = false }: { isAdmin?: boolean })
         setError(data.error ?? "Failed to add leads.");
         return;
       }
-      let message = `✓ Added ${data.added} companies to the lead board. Head to the terminal to see them.`;
+      let message = isAdmin
+        ? `✓ Added ${data.added} companies. Head to the terminal to see them.`
+        : `✓ Added ${data.added} companies to your 🔒 My Leads. Head to the terminal to work them.`;
       if (data.skippedDuplicates > 0) {
         message += ` (Skipped ${data.skippedDuplicates} already on the board.)`;
       }

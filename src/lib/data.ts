@@ -234,6 +234,12 @@ export async function createLeadsFromDiscovery(
         industry: details?.industry ?? null,
         discovered_by: context.discoveredBy || null,
         search_keywords: context.keywords || null,
+        // If the lead is assigned to a rep on discovery, start the 15-day claim
+        // clock so it behaves like a real claim (and can auto-release later).
+        claimed_at:
+          context.owner && context.owner !== UNASSIGNED
+            ? new Date().toISOString()
+            : null,
         latest_signal: signalParts.length
           ? `Apollo: ${signalParts.join(" · ")}`
           : "Discovered via Apollo prospecting — scores are starting estimates",
