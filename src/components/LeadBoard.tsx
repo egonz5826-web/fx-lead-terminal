@@ -38,7 +38,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "company_name", label: "Company" },
   { key: "city", label: "City / State" },
   { key: "import_corridors", label: "Corridors" },
-  { key: "est_annual_teu", label: "Est. Annual TEU" },
+  { key: "est_annual_teu", label: "Size Proxy" },
   { key: "currency_exposure", label: "Currency Exposure" },
   { key: "fx_opportunity_score", label: "FX Score" },
   { key: "ai_score", label: "AI Analyst" },
@@ -782,7 +782,10 @@ export default function LeadBoard({
                 <td className="whitespace-nowrap px-3 py-1.5 text-neutral-400">
                   {lead.import_corridors}
                 </td>
-                <td className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300">
+                <td
+                  className="tabular whitespace-nowrap px-3 py-1.5 text-amber-300"
+                  title="Employee-count-based size proxy — not real customs/freight data. Check the ImportYeti link (IMP↗) for real shipment history."
+                >
                   {lead.est_annual_teu.toLocaleString()}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-neutral-400">
@@ -808,7 +811,7 @@ export default function LeadBoard({
                   )}
                   <OutreachButton leadId={lead.id} companyName={lead.company_name} />
                 </td>
-                <td className="max-w-[220px] whitespace-normal break-words px-3 py-1.5 align-top text-neutral-400">
+                <td className="max-w-[340px] whitespace-normal break-words px-3 py-1.5 align-top text-neutral-400">
                   {lead.latest_signal}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5">

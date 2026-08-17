@@ -6,6 +6,7 @@ import type { EnrichedContact, OrganizationSearchResult } from "./apollo";
 import { enrichOrganization } from "./apollo";
 import { normalizeDomain } from "./matching";
 import { scoreLeadWithAI } from "./ai-scoring";
+import { assessTradeSignal, fetchWebsiteSignal } from "./trade-signal";
 import { UNASSIGNED, TEAM } from "./team";
 import { LEAD_STATUSES } from "./types";
 import { CLAIMING_STATUSES as CLAIMING_LIST, HIDDEN_STATUS, CLAIM_TTL_DAYS } from "./types";
@@ -119,47 +120,42 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(n)));
 }
 
-// Volume: log scale on annual revenue when Apollo has it ($1M→42, $10M→59,
-// $100M→76, $1B→93), falling back to headcount as a rough proxy.
-function volumeScore(
-  annualRevenue: number | null,
-  employees: number | null
-): number {
-  if (annualRevenue && annualRevenue > 0) {
-    return clamp(25 + 17 * Math.log10(annualRevenue / 100_000), 20, 98);
+// Volume: a mid-market BELL CURVE, not "bigger is always better." Revenue
+// climbs on a log scale up to PEAK_REVENUE (~$40M — a healthy mid-market
+// importer), then tapers off for enterprise-scale companies. A $2B company
+// isn't a bad company, but it needs an enterprise treasury sales motion, not
+// a rep cold-calling from this board — so it should stop auto-winning the
+// score just for being huge. Falls back to headcount as a rough proxy when
+// Apollo has no revenue figure.
+const PEAK_REVENUE = 40_000_000;
+export const OVERSIZED_REVENUE = 250_000_000;
+export const OVERSIZED_EMPLOYEES = 2000;
+
+function revenueCurve(revenue: number): number {
+  if (revenue <= PEAK_REVENUE) {
+    return clamp(25 + 17 * Math.log10(revenue / 100_000), 20, 92);
   }
-  if (employees && employees > 0) {
-    return clamp(25 + 17 * Math.log10(employees * 250_000 / 100_000), 20, 98);
-  }
+  const decay = 22 * Math.log10(revenue / PEAK_REVENUE);
+  return clamp(92 - decay, 15, 92);
+}
+
+function volumeScore(annualRevenue: number | null, employees: number | null): number {
+  if (annualRevenue && annualRevenue > 0) return revenueCurve(annualRevenue);
+  if (employees && employees > 0) return revenueCurve(employees * 250_000);
   return 40;
+}
+
+export function isOversized(annualRevenue: number | null, employees: number | null): boolean {
+  return (
+    (annualRevenue !== null && annualRevenue > OVERSIZED_REVENUE) ||
+    (employees !== null && employees > OVERSIZED_EMPLOYEES)
+  );
 }
 
 // Growth: centered at 45 for flat headcount; +10% YoY→63, +20%→80, shrinking→<45.
 function growthScore(growth12mo: number | null): number {
   if (growth12mo === null) return 50;
   return clamp(45 + growth12mo * 175, 15, 95);
-}
-
-// Corridor: how much FX opportunity the lead's currency pair carries for an
-// FX payments/hedging pitch — peso volatility makes USD/MXN the sweet spot.
-const CORRIDOR_SCORES: Record<string, number> = {
-  "USD/MXN": 75,
-  "USD/CNY": 65,
-  "USD/JPY": 60,
-  "EUR/USD": 60,
-  "GBP/USD": 60,
-  "USD/CAD": 55,
-};
-
-// A lead can carry several currency pairs (or none). Score by the best FX
-// opportunity among them; neutral 60 when unspecified.
-function corridorScore(currencyExposure: string): number {
-  const parts = currencyExposure
-    .split(",")
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean);
-  if (parts.length === 0) return 60;
-  return Math.max(...parts.map((p) => CORRIDOR_SCORES[p] ?? 60));
 }
 
 export interface CreateLeadsResult {
@@ -213,11 +209,30 @@ export async function createLeadsFromDiscovery(
       const revenue = details?.annual_revenue ?? null;
       const growth = details?.growth_12mo ?? c.growth_12mo ?? null;
 
+      // Free, real, per-company evidence: Apollo's own industry/keyword tags
+      // (already fetched above, previously discarded) plus a best-effort
+      // read of the company's own public homepage. Replaces the old "type a
+      // corridor once, apply it to every result in the batch" behavior.
+      const websiteText = await fetchWebsiteSignal(c.website);
+      const signal = assessTradeSignal({
+        industry: details?.industry ?? null,
+        keywords: details?.keywords ?? [],
+        shortDescription: details?.short_description ?? null,
+        websiteText,
+        manualCorridor: context.corridor,
+        manualCurrencyExposure: context.currencyExposure,
+      });
+      const oversized = isOversized(revenue, employees);
+
       const signalParts: string[] = [];
       if (details?.industry) signalParts.push(details.industry);
       if (revenue) signalParts.push(`~$${(revenue / 1_000_000).toFixed(1)}M rev`);
       if (growth !== null)
         signalParts.push(`${growth >= 0 ? "+" : ""}${(growth * 100).toFixed(0)}% HC growth`);
+      if (oversized)
+        signalParts.push("⚠ enterprise-scale — likely needs a different sales motion than a rep cold-call");
+      signalParts.push(...signal.evidence);
+      signalParts.push(...signal.concerns);
 
       return {
         company_name: c.name,
@@ -225,11 +240,12 @@ export async function createLeadsFromDiscovery(
         phone: details?.phone ?? c.phone ?? null,
         city: details?.city ?? "Unknown",
         state: details?.state ?? "Unknown",
-        import_corridors: context.corridor.trim() || "Any",
+        import_corridors: signal.corridorGuess ?? (context.corridor.trim() || "Unverified"),
         currency_exposure: context.currencyExposure.trim() || "Unspecified",
+        // Employee-based size proxy only — NOT real customs/freight data.
         est_annual_teu: employees ? employees * 80 : 5000,
         volume_score: volumeScore(revenue, employees),
-        corridor_score: corridorScore(context.currencyExposure),
+        corridor_score: signal.score,
         growth_score: growthScore(growth),
         industry: details?.industry ?? null,
         discovered_by: context.discoveredBy || null,
@@ -241,8 +257,8 @@ export async function createLeadsFromDiscovery(
             ? new Date().toISOString()
             : null,
         latest_signal: signalParts.length
-          ? `Apollo: ${signalParts.join(" · ")}`
-          : "Discovered via Apollo prospecting — scores are starting estimates",
+          ? signalParts.join(" · ")
+          : "Discovered via Apollo prospecting — no independent trade evidence found yet",
         status: "New",
         owner: context.owner || "Unassigned",
       };
@@ -318,9 +334,10 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
 
   const { data: leads, error, count } = await supabase
     .from("leads")
-    .select("id, website, currency_exposure, volume_score, growth_score, phone, city, state", {
-      count: "exact",
-    })
+    .select(
+      "id, website, currency_exposure, import_corridors, industry, volume_score, growth_score, phone, city, state",
+      { count: "exact" }
+    )
     .order("company_name", { ascending: true })
     .range(offset, offset + limit - 1);
   if (error) throw error;
@@ -328,6 +345,17 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
   let updated = 0;
   let enrichFailed = 0;
   let enrichmentCallsMade = 0;
+
+  // Fetch all website text up front, in parallel — it's independent of
+  // Apollo, so there's no reason to pay its ~4s timeout serially per lead
+  // (which could stack up toward the function timeout on a 25-50 lead page).
+  // Apollo enrichment below stays sequential, same as before, to avoid
+  // bursting past Apollo's rate limit.
+  const websiteTexts = new Map(
+    await Promise.all(
+      (leads ?? []).map(async (l) => [l.id, await fetchWebsiteSignal(l.website)] as const)
+    )
+  );
 
   for (const lead of leads ?? []) {
     let details: Awaited<ReturnType<typeof enrichOrganization>> = null;
@@ -340,14 +368,23 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
       }
     }
 
-    const fields: Record<string, unknown> = {
-      corridor_score: corridorScore(lead.currency_exposure ?? ""),
-    };
+    const websiteText = websiteTexts.get(lead.id) ?? "";
+    const signal = assessTradeSignal({
+      industry: details?.industry ?? lead.industry ?? null,
+      keywords: details?.keywords ?? [],
+      shortDescription: details?.short_description ?? null,
+      websiteText,
+      manualCorridor: lead.import_corridors ?? "",
+      manualCurrencyExposure: lead.currency_exposure ?? "",
+    });
+
+    const fields: Record<string, unknown> = { corridor_score: signal.score };
+    if (signal.corridorGuess) fields.import_corridors = signal.corridorGuess;
+
+    const signalParts: string[] = [];
     if (details) {
-      fields.volume_score = volumeScore(
-        details.annual_revenue,
-        details.estimated_employees
-      );
+      const oversized = isOversized(details.annual_revenue, details.estimated_employees);
+      fields.volume_score = volumeScore(details.annual_revenue, details.estimated_employees);
       fields.growth_score = growthScore(details.growth_12mo);
       if (details.estimated_employees) {
         fields.est_annual_teu = details.estimated_employees * 80;
@@ -355,7 +392,22 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
       if (!lead.phone && details.phone) fields.phone = details.phone;
       if ((!lead.city || lead.city === "Unknown") && details.city) fields.city = details.city;
       if ((!lead.state || lead.state === "Unknown") && details.state) fields.state = details.state;
+
+      if (details.industry) signalParts.push(details.industry);
+      if (details.annual_revenue)
+        signalParts.push(`~$${(details.annual_revenue / 1_000_000).toFixed(1)}M rev`);
+      if (details.growth_12mo !== null)
+        signalParts.push(
+          `${details.growth_12mo >= 0 ? "+" : ""}${(details.growth_12mo * 100).toFixed(0)}% HC growth`
+        );
+      if (oversized)
+        signalParts.push("⚠ enterprise-scale — likely needs a different sales motion than a rep cold-call");
     }
+    signalParts.push(...signal.evidence);
+    signalParts.push(...signal.concerns);
+    fields.latest_signal = signalParts.length
+      ? signalParts.join(" · ")
+      : "Rescored — no independent trade evidence found yet";
 
     const { error: updateError } = await supabase
       .from("leads")

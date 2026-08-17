@@ -56,14 +56,14 @@ export default async function SettingsPage() {
         <form action={updateWeights} className="space-y-6">
           <WeightField
             name="weight_volume"
-            label="Shipment Volume"
-            description="Estimated annual container volume (TEU)"
+            label="Company Scale"
+            description="Revenue/headcount, weighted for mid-market fit (not real shipment data)"
             defaultValue={pct(weights.weight_volume)}
           />
           <WeightField
             name="weight_corridor"
             label="Corridor Currency"
-            description="FX volatility / opportunity of the import corridor's currency"
+            description="FX volatility / opportunity, backed by real evidence when found"
             defaultValue={pct(weights.weight_corridor)}
           />
           <WeightField

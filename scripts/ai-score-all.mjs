@@ -28,14 +28,31 @@ borders and are exposed to exchange-rate risk. The team leans toward the US–Me
 volatility is the sweet spot), but EUR/USD, USD/CNY, and other corridors are also valuable — do not penalize \
 a strong non-peso lead.
 
+Two important honesty notes about the numbers you're given:
+- est_annual_teu is a ROUGH employee-count-based size proxy, not real customs or freight data. Never cite it \
+as if it were a verified shipment count.
+- "Latest signal" often contains real evidence pulled from the company's own industry tags and website copy —
+  quoted trade language, matched corridor keywords — but it can also contain CONCERNS the evidence-gathering \
+step already flagged, such as "no independent trade evidence found", "reads like a domestic service \
+business", or "unverified rep guess". Treat those concerns as real red flags, not noise: a lead with no \
+supporting evidence and a concern flag should generally score well below 50, and your rationale should say \
+plainly that the cross-border fit is unconfirmed. Don't let a high volume/revenue number paper over a clear \
+"no evidence" concern.
+- If the signal contains an "⚠ enterprise-scale" flag, this company is likely too large for a rep-led cold \
+approach (it needs an enterprise treasury sales motion instead). Cap your score accordingly and say so in the \
+rationale — being huge is not the same as being a good fit for this team, right now.
+
 Weigh these signals holistically:
-- Transaction VOLUME (revenue/size proxy: volume_score, est_annual_teu) — bigger flows = bigger FX opportunity.
-- CORRIDOR value (corridor_score, currency_exposure) — more volatile pairs carry more hedging/savings upside.
+- Transaction VOLUME (revenue/size proxy: volume_score, est_annual_teu) — bigger flows = bigger FX opportunity,
+  but scale down for enterprise-scale companies per the note above.
+- CORRIDOR value (corridor_score, currency_exposure, latest signal evidence) — more volatile pairs carry more \
+hedging/savings upside, but only when there's real evidence behind the corridor, not just a rep's guess.
 - GROWTH (growth_score) — fast-growing importers scale their FX spend quickly.
 - Buying readiness (contacts_count) — decision-makers already identified means a warmer, more actionable lead.
 
-A small but fast-growing Mexico importer can outrank a large flat domestic-leaning company. Use judgment, \
-not a fixed formula.`;
+A small but fast-growing Mexico importer with real evidence in its favor can outrank a large flat company with \
+no cross-border evidence at all. Use judgment, not a fixed formula — and be willing to score a lead low and \
+say why, rather than defaulting to a comfortable middle score.`;
 
 const SCHEMA = {
   type: "object",

@@ -381,6 +381,8 @@ interface ApolloOrganizationEnrichResponse {
     state?: string | null;
     estimated_num_employees?: number | null;
     industry?: string | null;
+    keywords?: string[] | null;
+    short_description?: string | null;
     sanitized_phone?: string | null;
     annual_revenue?: number | null;
     organization_headcount_twelve_month_growth?: number | null;
@@ -392,6 +394,12 @@ export interface OrganizationDetails {
   state: string | null;
   estimated_employees: number | null;
   industry: string | null;
+  // Apollo's own industry tags + blurb — free, already paid for by the same
+  // enrichment call, but previously discarded. Real per-company evidence for
+  // whether this company actually moves goods across a border, instead of
+  // guessing from headcount alone.
+  keywords: string[];
+  short_description: string | null;
   phone: string | null;
   annual_revenue: number | null;
   growth_12mo: number | null;
@@ -426,6 +434,8 @@ export async function enrichOrganization(
     state: data.organization.state ?? null,
     estimated_employees: data.organization.estimated_num_employees ?? null,
     industry: data.organization.industry ?? null,
+    keywords: Array.isArray(data.organization.keywords) ? data.organization.keywords : [],
+    short_description: data.organization.short_description ?? null,
     phone: data.organization.sanitized_phone ?? null,
     annual_revenue: data.organization.annual_revenue ?? null,
     growth_12mo:
