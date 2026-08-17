@@ -34,8 +34,13 @@ as if it were a verified shipment count.
 - "Latest signal" often contains real evidence pulled from the company's own industry tags and website copy —
   quoted trade language, matched corridor keywords — but it can also contain CONCERNS the evidence-gathering \
 step already flagged, such as "no independent trade evidence found", "reads like a domestic service \
-business", or "unverified rep guess". Treat those concerns as real red flags, not noise: a lead with no \
-supporting evidence and a concern flag should generally score well below 50, and your rationale should say \
+business", "unverified rep guess", or "logistics/freight/customs-brokerage service provider". That last one \
+matters a lot: a freight forwarder, customs broker, 3PL, or trucking company is an INTERMEDIARY hired by an \
+importer — its own balance sheet usually isn't the one with FX exposure, even though its website is full of \
+trade-sounding words. Score these noticeably lower than a real importer/manufacturer/distributor with the \
+same corridor evidence, and say so in the rationale (e.g. "freight forwarder, not the importer — the client \
+they work for is the better prospect"). Treat all of these concerns as real red flags, not noise: a lead with \
+no supporting evidence and a concern flag should generally score well below 50, and your rationale should say \
 plainly that the cross-border fit is unconfirmed. Don't let a high volume/revenue number paper over a clear \
 "no evidence" concern.
 - If the signal contains an "⚠ enterprise-scale" flag, this company is likely too large for a rep-led cold \

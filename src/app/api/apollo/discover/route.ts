@@ -28,11 +28,19 @@ export async function POST(request: Request) {
     });
 
     const knownDomains = await getKnownDomains();
-    const results = rawResults.filter((r) => {
+    const deduped = rawResults.filter((r) => {
       const domain = normalizeDomain(r.website);
       return !domain || !knownDomains.has(domain);
     });
-    const filteredOutCount = rawResults.length - results.length;
+    const duplicateCount = rawResults.length - deduped.length;
+
+    // A company with no website can never be enriched (Apollo's enrich/contact
+    // lookups both key off a domain) and can never get contacts (Find Contacts
+    // requires one) — it's a dead end on this board no matter how it scores.
+    // Drop it here instead of letting reps waste a pick on an unworkable stub.
+    const results = deduped.filter((r) => Boolean(r.website));
+    const noWebsiteCount = deduped.length - results.length;
+    const filteredOutCount = duplicateCount + noWebsiteCount;
 
     const creditsUsed = await incrementApolloCreditsUsed();
 
@@ -42,17 +50,20 @@ export async function POST(request: Request) {
         creditsUsed,
         message:
           filteredOutCount > 0
-            ? `All ${filteredOutCount} matches are already on your board or previously discarded. Try different criteria or "show different batch."`
+            ? `All ${filteredOutCount} matches are already on your board, previously discarded, or have no website on file (can't be enriched or matched to contacts). Try different criteria or "show different batch."`
             : "No companies matched those criteria.",
       });
     }
 
+    const messageParts: string[] = [];
+    if (duplicateCount > 0) messageParts.push(`${duplicateCount} already-known companies`);
+    if (noWebsiteCount > 0)
+      messageParts.push(`${noWebsiteCount} with no website on file (can't be enriched or matched to contacts)`);
+
     return NextResponse.json({
       results,
       creditsUsed,
-      ...(filteredOutCount > 0
-        ? { message: `Hid ${filteredOutCount} already-known companies from these results.` }
-        : {}),
+      ...(messageParts.length > 0 ? { message: `Hid ${messageParts.join(" and ")}.` } : {}),
     });
   } catch (err) {
     if (err instanceof ApolloError) {

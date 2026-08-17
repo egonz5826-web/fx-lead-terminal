@@ -215,6 +215,7 @@ export async function createLeadsFromDiscovery(
       // corridor once, apply it to every result in the batch" behavior.
       const websiteText = await fetchWebsiteSignal(c.website);
       const signal = assessTradeSignal({
+        companyName: c.name,
         industry: details?.industry ?? null,
         keywords: details?.keywords ?? [],
         shortDescription: details?.short_description ?? null,
@@ -335,7 +336,7 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
   const { data: leads, error, count } = await supabase
     .from("leads")
     .select(
-      "id, website, currency_exposure, import_corridors, industry, volume_score, growth_score, phone, city, state",
+      "id, company_name, website, currency_exposure, import_corridors, industry, volume_score, growth_score, phone, city, state",
       { count: "exact" }
     )
     .order("company_name", { ascending: true })
@@ -370,6 +371,7 @@ export async function rescoreLeads(limit = 25, offset = 0): Promise<RescoreResul
 
     const websiteText = websiteTexts.get(lead.id) ?? "";
     const signal = assessTradeSignal({
+      companyName: lead.company_name,
       industry: details?.industry ?? lead.industry ?? null,
       keywords: details?.keywords ?? [],
       shortDescription: details?.short_description ?? null,

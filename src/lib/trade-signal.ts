@@ -45,13 +45,29 @@ const CORRIDOR_TERMS: CorridorTermSet[] = [
   { currency: "USD/JPY", terms: ["japan", "japanese", "tokyo", "osaka"] },
 ];
 
+// Signals that THIS company's own goods move across a border — the real
+// ICP (importers, manufacturers, distributors, wholesalers).
 const GENERIC_TRADE_TERMS = [
   "import", "imports", "importer", "importing", "export", "exports", "exporter", "exporting",
-  "customs", "freight", "freight forwarding", "freight forwarder", "logistics", "supply chain",
-  "3pl", "nvocc", "drayage", "warehousing", "distribution", "wholesale", "wholesaler",
+  "supply chain", "distribution", "wholesale", "wholesaler",
   "manufacturer", "manufacturing", "sourcing", "overseas supplier", "international shipping",
   "cross-border", "crossborder", "trade compliance", "tariff", "incoterm", "bill of lading",
-  "container", "ocean freight", "air freight", "customs broker", "customs brokerage",
+  "container", "ocean freight", "air freight",
+];
+
+// Deliberately NOT in the list above: freight/logistics/customs-brokerage
+// terms. A company whose own site is full of "freight forwarding" and
+// "customs brokerage" almost always means the company IS that service — an
+// intermediary hired by an importer, not the importer itself. Its own
+// balance sheet usually isn't the one exposed to FX risk; its clients' are.
+// These get flagged as a distinct concern, not counted as positive evidence.
+const LOGISTICS_PROVIDER_TERMS = [
+  "freight forwarder", "freight forwarding", "logistics provider", "logistics company",
+  "logistics solutions", "logistics services", "customs broker", "customs brokerage",
+  "customs brokers", "3pl", "third-party logistics", "nvocc", "drayage",
+  "trucking company", "trucking services", "warehousing services", "fulfillment services",
+  "ltl carrier", "ftl carrier", "freight carrier", "cargo carrier",
+  "supply chain solutions provider",
 ];
 
 const NON_TRADE_TERMS = [
@@ -66,6 +82,7 @@ const NON_TRADE_TERMS = [
 ];
 
 export interface TradeSignalInput {
+  companyName: string;
   industry: string | null;
   keywords: string[];
   shortDescription: string | null;
@@ -93,6 +110,15 @@ function firstCurrencyPair(exposure: string): string | null {
   const first = exposure.split(",").map((s) => s.trim()).filter(Boolean)[0];
   return first || null;
 }
+
+// Single words worth checking against the company's own NAME, not just its
+// industry/website text — useful when Apollo returns almost nothing else
+// (no website, no industry) but the name alone gives it away, e.g.
+// "Intelligent Logistics" or "Rio Grande Freight Forwarding".
+const LOGISTICS_NAME_WORDS = [
+  "logistics", "freight", "forwarding", "brokerage", "trucking", "drayage", "cartage",
+  "warehousing", "3pl", "nvocc",
+];
 
 export function assessTradeSignal(input: TradeSignalInput): TradeSignalResult {
   const corpus = [
@@ -132,6 +158,19 @@ export function assessTradeSignal(input: TradeSignalInput): TradeSignalResult {
     );
   }
 
+  const nameCorpus = input.companyName.toLowerCase();
+  const logisticsHits = [
+    ...findHits(corpus, LOGISTICS_PROVIDER_TERMS),
+    ...findHits(nameCorpus, LOGISTICS_NAME_WORDS),
+  ];
+  if (logisticsHits.length > 0) {
+    concerns.push(
+      `Looks like a logistics/freight/customs-brokerage service provider ("${logisticsHits[0]}") — ` +
+        `likely an intermediary that arranges shipping for other companies rather than a company with its ` +
+        `own cross-border merchandise exposure. The importer who hires them is usually the better prospect.`
+    );
+  }
+
   const manualCorridorGiven = input.manualCorridor.trim().length > 0;
   const manualCurrencyGiven = input.manualCurrencyExposure.trim().length > 0;
 
@@ -163,6 +202,9 @@ export function assessTradeSignal(input: TradeSignalInput): TradeSignalResult {
 
   if (nonTradeHits.length > 0) {
     score = clamp(score - 20, 10, 95);
+  }
+  if (logisticsHits.length > 0) {
+    score = clamp(score - 15, 10, 95);
   }
 
   return { score, corridorGuess, evidence, concerns };
